@@ -1,12 +1,10 @@
 
-<!doctype html>
-<html lang="ru">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VEX IQ Controller — USB Test</title>
-
-<meta name="build" content="2026-11-16.1">
+<meta name="build" content="2026-11-16.2">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -15,396 +13,652 @@
 <script>
 (function () {
   try {
-    if (location.protocol === 'file:') return;
+    if (location.protocol === "file:") return;
 
     var meta = document.querySelector('meta[name="build"]');
     if (!meta || !window.fetch) return;
 
-    var localBuild = meta.getAttribute('content');
-    var cleanUrl = location.href.split('#')[0].split('?')[0];
-    var guardKey = 'vex-build-reload:' + cleanUrl;
+    var build = meta.getAttribute("content");
+    var clean = location.href.split("#")[0].split("?")[0];
+    var key = "vex-build-reload:" + clean;
 
-    fetch(cleanUrl + '?_v=' + Date.now(), {
-      cache: 'no-store'
-    })
-    .then(function (response) {
+    fetch(clean + "?_v=" + Date.now(), {
+      cache: "no-store"
+    }).then(function (response) {
       if (!response.ok) return null;
       return response.text();
-    })
-    .then(function (html) {
+    }).then(function (html) {
       if (!html) return;
 
       var match = /<meta\s+name=["']build["']\s+content=["']([^"']+)["']/i.exec(html);
-      if (!match) return;
-
-      var remoteBuild = match[1];
-      if (remoteBuild === localBuild) return;
+      if (!match || match[1] === build) return;
 
       try {
-        if (sessionStorage.getItem(guardKey) === remoteBuild) return;
-        sessionStorage.setItem(guardKey, remoteBuild);
+        if (sessionStorage.getItem(key) === match[1]) return;
+        sessionStorage.setItem(key, match[1]);
       } catch (e) {
         return;
       }
 
-      location.replace(cleanUrl + '?_v=' + Date.now());
-    })
-    .catch(function () {});
+      location.replace(clean + "?_v=" + Date.now());
+    }).catch(function () {});
   } catch (e) {}
 }());
 </script>
 
+<title>VEX IQ Controller Test</title>
+
 <style>
-:root {
-  font-family:system-ui,-apple-system,Segoe UI,sans-serif;
-  color-scheme:dark;
-}
+* { box-sizing:border-box; }
+
 body {
   margin:0;
-  background:#0d1525;
-  color:#edf3ff;
+  background:#101827;
+  color:#f0f5ff;
+  font-family:Arial,sans-serif;
 }
-.wrap {
+
+main {
   max-width:850px;
-  margin:35px auto;
-  padding:0 20px;
+  margin:30px auto;
+  padding:15px;
 }
-h1 {
-  font-size:clamp(25px,4vw,36px);
-  margin-bottom:10px;
-}
-p {
-  color:#b8c7e4;
-  line-height:1.6;
-}
+
+h1 { margin-bottom:8px; }
+
+p { color:#b9c6dd; line-height:1.6; }
+
 .panel {
-  background:#19263c;
-  border:1px solid #334561;
-  border-radius:16px;
+  background:#1d2a40;
   padding:22px;
-  margin:20px 0;
+  border-radius:15px;
+  margin:16px 0;
+  border:1px solid #35445f;
 }
-button,select {
-  background:#407ef6;
+
+button {
+  border:none;
+  background:#417df3;
   color:white;
-  border:0;
+  font-size:16px;
+  padding:13px 17px;
   border-radius:9px;
-  padding:12px 15px;
-  font:inherit;
   cursor:pointer;
-  margin:5px 5px 5px 0;
+  margin:4px;
 }
+
 button:disabled {
   opacity:.45;
-  cursor:not-allowed;
+  cursor:default;
 }
-select {
-  background:#2b3e59;
+
+#status {
+  font-weight:bold;
+  color:#ffcb78;
 }
-label {
-  font-size:14px;
-  color:#b8c7e4;
+
+.axes {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:15px;
 }
-.status {
-  font-weight:700;
+
+.axis {
+  padding:15px;
+  border-radius:12px;
+  background:#101b2d;
 }
-.ok {
-  color:#5fe0aa;
+
+.axis label {
+  display:block;
+  margin-bottom:12px;
+  font-weight:bold;
 }
-.bad {
-  color:#ffad8b;
+
+.track {
+  height:18px;
+  border-radius:20px;
+  background:#35445e;
+  position:relative;
 }
+
+.marker {
+  width:14px;
+  height:26px;
+  background:#56e8ae;
+  position:absolute;
+  top:-4px;
+  left:50%;
+  border-radius:7px;
+  transform:translateX(-50%);
+}
+
+.value {
+  margin-top:12px;
+  font-size:22px;
+  font-weight:bold;
+  text-align:center;
+}
+
+.bytes {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
+  gap:8px;
+}
+
+.byte {
+  border-radius:9px;
+  padding:10px 5px;
+  background:#101b2d;
+  text-align:center;
+  border:1px solid #334561;
+}
+
+.byte.changed {
+  background:#225d4a;
+  border-color:#55d9a6;
+}
+
+.byte small {
+  display:block;
+  color:#9aacca;
+  font-size:12px;
+}
+
+.byte strong {
+  display:block;
+  font-size:21px;
+  margin-top:5px;
+}
+
 pre {
+  background:#0c1422;
+  color:#b5f5d6;
+  padding:15px;
+  border-radius:10px;
+  max-height:280px;
   overflow:auto;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
-  background:#0b1321;
-  border:1px solid #334561;
-  padding:16px;
-  border-radius:10px;
-  min-height:140px;
-  max-height:380px;
+  font-size:12px;
 }
-small {
-  color:#aebbd2;
-}
-code {
-  color:#b4d0ff;
-}
-.row {
+
+.stats {
   display:flex;
-  gap:10px;
+  gap:25px;
   flex-wrap:wrap;
-  align-items:center;
 }
-.count {
-  font-variant-numeric:tabular-nums;
+
+.stats b {
+  color:#60e1ae;
+  font-size:22px;
+}
+
+@media(max-width:500px) {
+  .axes { grid-template-columns:1fr; }
 }
 </style>
 </head>
 
 <body>
-<main class="wrap">
+<main>
 
-<h1>🎮 VEX IQ Controller USB Test</h1>
+<h1>🎮 VEX IQ Controller Test</h1>
 
 <p>
-Тест для контроллера <b>VEX IQ 2nd Gen</b>
-без Robot Brain. Эта страница проверяет Web Serial
-и показывает сырые данные, если контроллер их передаёт.
-Она <b>пока не преобразует</b> сигналы в нажатия клавиш.
+VEX IQ 2nd Generation · USB-C · No Robot Brain
 </p>
 
 <div class="panel">
-  <div class="row">
-    <button id="connect">Connect Controller</button>
-    <button id="disconnect" disabled>Disconnect</button>
-    <button id="clear">Clear log</button>
-    <button id="copy">Copy diagnostic</button>
-  </div>
 
-  <p>
-    <span class="status" id="status">Not connected</span>
-    · Bytes: <span id="bytes" class="count">0</span>
-    · Chunks: <span id="chunks" class="count">0</span>
-  </p>
+<button id="connect">Connect Controller</button>
+<button id="disconnect" disabled>Disconnect</button>
 
-  <label for="baud">Serial speed (diagnostic setting)</label>
+<p id="status">Not connected</p>
 
-  <select id="baud">
-    <option value="115200">115200</option>
-    <option value="9600">9600</option>
-    <option value="57600">57600</option>
-    <option value="230400">230400</option>
-  </select>
+<p>
+Choose <b>VEX Robotics Communications Port</b>
+(COM4 on your computer).
+</p>
 
-  <p>
-    <small>
-      В Windows при выборе порта сначала попробуй
-      <b>VEX Robotics Communications Port</b>.
-      Если устройство подключится, но данные не появятся,
-      это ещё не означает неисправность:
-      контроллер может требовать специальную команду
-      запуска обмена.
-    </small>
-  </p>
+<p>
+This test sends the polling command observed in
+the working simulator. It does not update firmware.
+</p>
+
+<div class="stats">
+  <div>Packets<br><b id="packets">0</b></div>
+  <div>Bytes<br><b id="bytes">0</b></div>
+  <div>Changes<br><b id="changes">0</b></div>
+</div>
+
 </div>
 
 <div class="panel">
-  <h2>Incoming USB data</h2>
-  <p>
-    Нажимай кнопки и двигай джойстиками после подключения.
-  </p>
-  <pre id="log">No incoming data yet.</pre>
+
+<h2>Joystick Test</h2>
+
+<p>
+Move both joysticks. The four values below
+are candidate analog axes from the received
+packets, not yet verified axis assignments.
+</p>
+
+<div class="axes" id="axes"></div>
+
 </div>
 
 <div class="panel">
-  <h2>Что делать с результатом</h2>
 
-  <p>
-    Скопируй диагностический журнал и пришли его в чат.
-    <b>Журнал может содержать данные устройства</b> —
-    просматривай его перед отправкой.
-    Сырые USB-пакеты обычно не являются личными данными,
-    но не стоит публиковать серийные номера устройства.
-  </p>
+<h2>Live Controller Bytes</h2>
 
-  <p>
-    <small>
-      Тест работает только в защищённом контексте:
-      HTTPS (например, GitHub Pages) или localhost,
-      в Chrome/Edge с поддержкой Web Serial.
-      Открытие обычного HTML-файла двойным щелчком
-      может не дать доступа к порту.
-    </small>
-  </p>
+<p>
+Press buttons one at a time.
+Changed byte values are highlighted green.
+This helps identify button mappings.
+</p>
+
+<div class="bytes" id="byteGrid"></div>
+
+</div>
+
+<div class="panel">
+
+<h2>Diagnostic Log</h2>
+
+<button id="clear">Clear Log</button>
+<button id="copy">Copy Diagnostic</button>
+
+<pre id="log">Waiting for controller...</pre>
+
 </div>
 
 </main>
 
 <script>
+"use strict";
+
 const $ = id => document.getElementById(id);
 
 let port = null;
 let reader = null;
-let reading = false;
-let bytes = 0;
-let chunks = 0;
+let writer = null;
+let running = false;
+let pollTimer = null;
+
+let rxBuffer = [];
+let totalBytes = 0;
+let packetCount = 0;
+let changeCount = 0;
+
+let previousPacket = null;
+let lastPacket = null;
+
 let logLines = [];
+let lastHex = "";
 
-function status(t,good=false) {
-  $('status').textContent = t;
-  $('status').className = 'status ' + (good?'ok':'bad');
-}
+const POLL = new Uint8Array([
+  0xc9,0x36,0xb8,0x47,
+  0x58,0x60,0x00,0x10,0x53
+]);
 
-function line(s) {
-  logLines.push(s);
+function log(message) {
+  logLines.push(message);
 
-  if(logLines.length > 120) {
+  if (logLines.length > 100) {
     logLines.shift();
   }
 
-  $('log').textContent = logLines.join('\n');
+  $("log").textContent = logLines.join("\n");
 }
 
-function metrics() {
-  $('bytes').textContent = bytes;
-  $('chunks').textContent = chunks;
+function setStatus(message, color) {
+  $("status").textContent = message;
+  $("status").style.color = color || "#ffcb78";
 }
 
-function resetButtons(connected) {
-  $('connect').disabled = connected;
-  $('disconnect').disabled = !connected;
+function hex(data) {
+  return Array.from(data)
+    .map(n => n.toString(16).padStart(2,"0"))
+    .join(" ");
 }
 
-async function stop() {
-  reading = false;
+function updateStats() {
+  $("packets").textContent = packetCount;
+  $("bytes").textContent = totalBytes;
+  $("changes").textContent = changeCount;
+}
 
-  if(reader) {
-    try {
-      await reader.cancel();
-    } catch(e) {
-      line('Cancel: ' + e.message);
+// Create four axis displays.
+for (let i=0; i<4; i++) {
+  $("axes").insertAdjacentHTML("beforeend",`
+    <div class="axis">
+      <label>Candidate Axis ${i+1}</label>
+      <div class="track">
+        <div class="marker" id="marker${i}"></div>
+      </div>
+      <div class="value" id="axis${i}">127</div>
+    </div>
+  `);
+}
+
+// Show packet bytes, indexed from zero.
+for (let i=0; i<23; i++) {
+  $("byteGrid").insertAdjacentHTML("beforeend",`
+    <div class="byte" id="byte${i}">
+      <small>Byte ${i}</small>
+      <strong id="byteValue${i}">--</strong>
+    </div>
+  `);
+}
+
+function displayPacket(packet) {
+
+  for (let i=0; i<23; i++) {
+    const value = packet[i];
+
+    const changed = previousPacket &&
+      previousPacket[i] !== value;
+
+    $("byteValue"+i).textContent =
+      value.toString(16).padStart(2,"0");
+
+    $("byte"+i).classList.toggle(
+      "changed",!!changed
+    );
+  }
+
+  // Candidate axes at positions 5-8.
+  for (let i=0; i<4; i++) {
+    const value = packet[5+i];
+    const percent = Math.max(
+      0,Math.min(100,value/255*100)
+    );
+
+    $("axis"+i).textContent = value;
+
+    $("marker"+i).style.left = percent+"%";
+  }
+
+  if (previousPacket) {
+    const changedPositions = [];
+
+    for (let i=0; i<23; i++) {
+      if (packet[i] !== previousPacket[i]) {
+        changedPositions.push(
+          i+":"+
+          previousPacket[i].toString(16).padStart(2,"0")+
+          "→"+
+          packet[i].toString(16).padStart(2,"0")
+        );
+      }
+    }
+
+    if (changedPositions.length) {
+      changeCount++;
+
+      if (changeCount <= 80) {
+        log(
+          "CHANGE "+changeCount+
+          " | "+changedPositions.join(" ")
+        );
+      }
+    }
+  }
+
+  previousPacket = packet.slice();
+  lastPacket = packet.slice();
+
+  if (packetCount === 1) {
+    log("FIRST PACKET: "+hex(packet));
+  }
+
+  updateStats();
+}
+
+// Web Serial is a stream. USB reads can split a
+// packet into several pieces, or combine packets.
+function processIncoming(data) {
+
+  totalBytes += data.length;
+
+  for (const byte of data) {
+    rxBuffer.push(byte);
+  }
+
+  // Prevent unlimited growth if unexpected data arrives.
+  if (rxBuffer.length > 4096) {
+    rxBuffer = rxBuffer.slice(-2048);
+  }
+
+  while (rxBuffer.length >= 4) {
+
+    // Find the known controller response header.
+    if (
+      rxBuffer[0] !== 0xaa ||
+      rxBuffer[1] !== 0x55
+    ) {
+      rxBuffer.shift();
+      continue;
+    }
+
+    // Expected packet seen in the simulator:
+    // AA 55 58 13 followed by 19 bytes.
+    if (
+      rxBuffer[2] !== 0x58 ||
+      rxBuffer[3] !== 0x13
+    ) {
+      rxBuffer.shift();
+      continue;
+    }
+
+    const size = 23;
+
+    if (rxBuffer.length < size) break;
+
+    const packet = rxBuffer.splice(0,size);
+
+    packetCount++;
+    displayPacket(packet);
+  }
+
+  updateStats();
+}
+
+async function readLoop() {
+
+  try {
+    reader = port.readable.getReader();
+
+    while (running) {
+
+      const result = await reader.read();
+
+      if (result.done) break;
+
+      if (result.value) {
+        processIncoming(result.value);
+      }
+    }
+
+  } catch(e) {
+    if (running) {
+      log("Read error: "+e.message);
+      setStatus("Read error","#ff8585");
+    }
+
+  } finally {
+    if (reader) {
+      reader.releaseLock();
+      reader = null;
     }
   }
 }
 
-$('connect').onclick = async () => {
+async function sendPoll() {
 
-  if(!('serial' in navigator)) {
-    status('Web Serial unavailable. Use Chrome/Edge on HTTPS.');
+  if (!running || !writer) return;
+
+  try {
+    await writer.write(POLL);
+  } catch(e) {
+    log("Write error: "+e.message);
+    setStatus("Write error","#ff8585");
+    running = false;
+  }
+}
+
+async function pollLoop() {
+
+  while (running) {
+
+    await sendPoll();
+
+    if (!running) break;
+
+    // Approximately 10 polls per second.
+    await new Promise(resolve => {
+      pollTimer = setTimeout(resolve,100);
+    });
+  }
+}
+
+$("connect").onclick = async function() {
+
+  if (!("serial" in navigator)) {
+    setStatus(
+      "Web Serial not supported. Use Chrome or Edge on HTTPS.",
+      "#ff8585"
+    );
     return;
   }
 
+  $("connect").disabled = true;
+
   try {
+
     port = await navigator.serial.requestPort();
-
-    await port.open({
-      baudRate:Number($('baud').value)
-    });
-
-    reading = true;
-    resetButtons(true);
-    status('Connected — listening for data',true);
 
     const info = port.getInfo();
 
-    line(
-      'Connected. USB Vendor ID: ' +
-      (info.usbVendorId===undefined
-        ? 'unknown'
-        : '0x'+info.usbVendorId.toString(16)) +
-      '; Product ID: ' +
-      (info.usbProductId===undefined
-        ? 'unknown'
-        : '0x'+info.usbProductId.toString(16))
+    log(
+      "USB device: "+
+      JSON.stringify(info)
     );
 
-    while(reading && port.readable) {
+    await port.open({baudRate:115200});
 
-      reader = port.readable.getReader();
+    reader = null;
+    writer = port.writable.getWriter();
 
-      try {
-        while(reading) {
+    running = true;
 
-          let {value,done} = await reader.read();
+    $("disconnect").disabled = false;
 
-          if(done) break;
-          if(!value?.length) continue;
+    setStatus(
+      "Connected — polling controller",
+      "#62e7ac"
+    );
 
-          bytes += value.length;
-          chunks++;
-          metrics();
+    log("TX polling command: "+hex(POLL));
 
-          const hex = Array.from(value)
-            .map(x=>x.toString(16).padStart(2,'0'))
-            .join(' ');
-
-          const ascii = Array.from(value)
-            .map(x=>(x>=32&&x<127)
-              ? String.fromCharCode(x)
-              : '.')
-            .join('');
-
-          line(
-            '#'+chunks+
-            ' ['+value.length+' bytes] HEX: '+
-            hex.slice(0,700)+
-            (hex.length>700?' …':'')+
-            ' | ASCII: '+
-            ascii.slice(0,150)
-          );
-        }
-
-      } catch(e) {
-        line('Read error: '+e.message);
-        status('Read error');
-
-      } finally {
-        reader.releaseLock();
-        reader = null;
-      }
-
-      break;
-    }
+    // Reader and polling run concurrently.
+    readLoop();
+    pollLoop();
 
   } catch(e) {
-    status('Connection failed: '+e.message);
-    line('ERROR: '+e.name+': '+e.message);
 
-  } finally {
+    log("Connect error: "+e.message);
 
-    reading = false;
+    setStatus(
+      "Connection failed: "+e.message,
+      "#ff8585"
+    );
 
-    if(port) {
-      try {
-        await port.close();
-      } catch(e) {
-        line('Close: '+e.message);
-      }
-      port = null;
-    }
-
-    resetButtons(false);
+    $("connect").disabled = false;
   }
 };
 
-$('disconnect').onclick = () => stop();
+$("disconnect").onclick = async function() {
 
-$('clear').onclick = () => {
-  logLines = [];
-  bytes = 0;
-  chunks = 0;
-  metrics();
-  $('log').textContent = 'No incoming data yet.';
+  running = false;
+
+  setStatus("Disconnecting...");
+
+  if (reader) {
+    try {
+      await reader.cancel();
+    } catch(e) {}
+  }
+
+  // Give readLoop time to release its lock.
+  await new Promise(resolve=>setTimeout(resolve,150));
+
+  if (writer) {
+    try {
+      writer.releaseLock();
+    } catch(e) {}
+    writer = null;
+  }
+
+  if (port) {
+    try {
+      await port.close();
+    } catch(e) {
+      log("Close error: "+e.message);
+    }
+    port = null;
+  }
+
+  $("connect").disabled = false;
+  $("disconnect").disabled = true;
+
+  setStatus("Disconnected");
+  log("Disconnected");
 };
 
-$('copy').onclick = async () => {
+$("clear").onclick = function() {
+  logLines = [];
+  changeCount = 0;
+  $("log").textContent = "Log cleared";
+  updateStats();
+};
 
-  const report = [
-    'VEX IQ 2nd Gen USB test',
-    'Browser: '+navigator.userAgent,
-    'Status: '+$('status').textContent,
-    'Bytes: '+bytes,
-    'Chunks: '+chunks,
+$("copy").onclick = async function() {
+
+  const diagnostic = [
+    "VEX IQ Controller Polling Test",
+    "Build: 2026-11-16.2",
+    "Browser: "+navigator.userAgent,
+    "Status: "+$("status").textContent,
+    "Packets: "+packetCount,
+    "Bytes: "+totalBytes,
+    "Changes: "+changeCount,
+    "Last packet: "+
+      (lastPacket ? hex(lastPacket) : "none"),
+    "",
     ...logLines
-  ].join('\n');
+  ].join("\n");
 
   try {
-    await navigator.clipboard.writeText(report);
-
-    $('copy').textContent = 'Copied!';
-
-    setTimeout(
-      ()=>$('copy').textContent='Copy diagnostic',
-      1600
+    await navigator.clipboard.writeText(
+      diagnostic
     );
 
+    $("copy").textContent = "Copied!";
+
+    setTimeout(()=>{
+      $("copy").textContent="Copy Diagnostic";
+    },1500);
+
   } catch(e) {
-    line('Copy failed: '+e.message);
+    log("Copy failed: "+e.message);
   }
 };
-</script>
 
+window.addEventListener("beforeunload",()=>{
+  running=false;
+});
+</script>
 </body>
 </html>
