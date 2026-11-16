@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VEX IQ Controller — USB Test</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark}body{margin:0;background:#0d1525;color:#edf3ff}.wrap{max-width:850px;margin:35px auto;padding:0 20px}h1{font-size:clamp(25px,4vw,36px);margin-bottom:10px}p{color:#b8c7e4;line-height:1.6}.panel{background:#19263c;border:1px solid #334561;border-radius:16px;padding:22px;margin:20px 0}button,select{background:#407ef6;color:white;border:0;border-radius:9px;padding:12px 15px;font:inherit;cursor:pointer;margin:5px 5px 5px 0}button:disabled{opacity:.45;cursor:not-allowed}select{background:#2b3e59}label{font-size:14px;color:#b8c7e4}.status{font-weight:700}.ok{color:#5fe0aa}.bad{color:#ffad8b}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1321;border:1px solid #334561;padding:16px;border-radius:10px;min-height:140px;max-height:380px}small{color:#aebbd2}code{color:#b4d0ff}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.count{font-variant-numeric:tabular-nums}</style>
+</head>
+<body><main class="wrap"><h1>🎮 VEX IQ Controller USB Test</h1>
+<p>Тест для контроллера <b>VEX IQ 2nd Gen</b> без Robot Brain. Эта страница проверяет Web Serial и показывает сырые данные, если контроллер их передаёт. Она <b>пока не преобразует</b> сигналы в нажатия клавиш.</p>
+<div class="panel"><div class="row"><button id="connect">Connect Controller</button><button id="disconnect" disabled>Disconnect</button><button id="clear">Clear log</button><button id="copy">Copy diagnostic</button></div>
+<p><span class="status" id="status">Not connected</span> · Bytes: <span id="bytes" class="count">0</span> · Chunks: <span id="chunks" class="count">0</span></p>
+<label for="baud">Serial speed (diagnostic setting)</label> <select id="baud"><option value="115200">115200</option><option value="9600">9600</option><option value="57600">57600</option><option value="230400">230400</option></select>
+<p><small>В Windows при выборе порта сначала попробуй <b>VEX Robotics Communications Port</b>. Если устройство подключится, но данные не появятся, это ещё не означает неисправность: контроллер может требовать специальную команду запуска обмена.</small></p></div>
+<div class="panel"><h2>Incoming USB data</h2><p>Нажимай кнопки и двигай джойстиками после подключения.</p><pre id="log">No incoming data yet.</pre></div>
+<div class="panel"><h2>Что делать с результатом</h2><p>Скопируй диагностический журнал и пришли его в чат. <b>Журнал может содержать данные устройства</b> — просматривай его перед отправкой. Сырые USB-пакеты обычно не являются личными данными, но не стоит публиковать серийные номера устройства.</p><p><small>Тест работает только в защищённом контексте: HTTPS (например, GitHub Pages) или localhost, в Chrome/Edge с поддержкой Web Serial. Открытие обычного HTML-файла двойным щелчком может не дать доступа к порту.</small></p></div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let port=null,reader=null,reading=false,bytes=0,chunks=0,logLines=[];
+function status(t,good=false){$('status').textContent=t;$('status').className='status '+(good?'ok':'bad')}
+function line(s){logLines.push(s);if(logLines.length>120)logLines.shift();$('log').textContent=logLines.join('\n')}
+function metrics(){$('bytes').textContent=bytes;$('chunks').textContent=chunks}
+function resetButtons(connected){$('connect').disabled=connected;$('disconnect').disabled=!connected}
+async function stop(){reading=false;if(reader){try{await reader.cancel()}catch(e){line('Cancel: '+e.message)}}}
+$('connect').onclick=async()=>{
+ if(!('serial' in navigator)){status('Web Serial unavailable. Use Chrome/Edge on HTTPS.');return}
+ try{
+  port=await navigator.serial.requestPort();
+  await port.open({baudRate:Number($('baud').value)});reading=true;resetButtons(true);status('Connected — listening for data',true);
+  const info=port.getInfo();line('Connected. USB Vendor ID: '+(info.usbVendorId===undefined?'unknown':'0x'+info.usbVendorId.toString(16))+'; Product ID: '+(info.usbProductId===undefined?'unknown':'0x'+info.usbProductId.toString(16)));
+  while(reading&&port.readable){reader=port.readable.getReader();try{
+    while(reading){let {value,done}=await reader.read();if(done)break;if(!value?.length)continue;
+     bytes+=value.length;chunks++;metrics();
+     const hex=Array.from(value).map(x=>x.toString(16).padStart(2,'0')).join(' ');
+     const ascii=Array.from(value).map(x=>(x>=32&&x<127)?String.fromCharCode(x):'.').join('');
+     line('#'+chunks+' ['+value.length+' bytes] HEX: '+hex.slice(0,700)+(hex.length>700?' …':'')+' | ASCII: '+ascii.slice(0,150));
+    }
+  }catch(e){line('Read error: '+e.message);status('Read error')}finally{reader.releaseLock();reader=null}break}
+ }catch(e){status('Connection failed: '+e.message);line('ERROR: '+e.name+': '+e.message)}finally{
+  reading=false;if(port){try{await port.close()}catch(e){line('Close: '+e.message)}port=null}resetButtons(false);
+ }
+};
+$('disconnect').onclick=()=>stop();
+$('clear').onclick=()=>{logLines=[];bytes=0;chunks=0;metrics();$('log').textContent='No incoming data yet.'};
+$('copy').onclick=async()=>{const report=['VEX IQ 2nd Gen USB test','Browser: '+navigator.userAgent,'Status: '+$('status').textContent,'Bytes: '+bytes,'Chunks: '+chunks,...logLines].join('\n');try{await navigator.clipboard.writeText(report);$('copy').textContent='Copied!';setTimeout(()=>$('copy').textContent='Copy diagnostic',1600)}catch(e){line('Copy failed: '+e.message)}};
+</script></body></html>
