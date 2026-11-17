@@ -248,6 +248,21 @@
     messageText.textContent=input+' is already assigned to '+duplicates.join(', ')+'.';
     messageBox.hidden=false;updateFields();
   }
+  
+  function requestAssignment(key, input) {
+    if (input === 'none') {finishAssignment(key, input);    return;}
+    const duplicates = keys.filter(  k => k !== key && mapping[k] === input);
+    if (!duplicates.length) {  finishAssignment(key, input); return;  }
+    conflict = { key, input, duplicates };
+    learning = null;
+    messageText.textContent = input + ' is already assigned to '+duplicates.join(', ') + '.';
+    updateFields();
+    // Move warning directly above the selected field.
+    const field = fields.get(key);
+    if (field) {field.closest('.row').before(messageBox); }
+    messageBox.hidden = false;
+  }
+
   function resolveConflict(choice) {
     if(!conflict)return;
     const {key,input,duplicates}=conflict;
