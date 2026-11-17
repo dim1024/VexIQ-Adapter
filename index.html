@@ -1,303 +1,210 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VEX IQ Visual Controller Test</title>
-
-<meta name="build" content="2026-11-17.2">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="build" content="2026-11-17.3">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
+<title>VEX IQ Game Adapter</title>
 
 <!-- Change the build meta content to a new string on every deploy. -->
 <script>
-(function () {
+(function(){
   try {
-    if (location.protocol === "file:") return;
-    var meta = document.querySelector('meta[name="build"]');
-    if (!meta || !window.fetch) return;
+    if(location.protocol==="file:") return;
+    var meta=document.querySelector('meta[name="build"]');
+    var local=meta.content;
+    var clean=location.href.split("#")[0].split("?")[0];
+    var key="vex-reload:"+clean;
 
-    var local = meta.getAttribute("content");
-    var clean = location.href.split("?")[0].split("#")[0];
-    var key = "vex-build-reload:" + clean;
-
-    fetch(clean + "?_v=" + Date.now(), {
-      cache: "no-store"
-    }).then(function (r) {
-      return r.ok ? r.text() : null;
-    }).then(function (html) {
-      if (!html) return;
-      var m = /<meta\s+name=["']build["']\s+content=["']([^"']+)["']/i.exec(html);
-      if (!m || m[1] === local) return;
+    fetch(clean+"?_v="+Date.now(),{cache:"no-store"})
+    .then(function(r){return r.ok?r.text():null;})
+    .then(function(html){
+      if(!html)return;
+      var m=/<meta\b[^>]*name=["']build["'][^>]*content=["']([^"']+)["']/i.exec(html);
+      if(!m||m[1]===local)return;
       try {
-        if (sessionStorage.getItem(key) === m[1]) return;
-        sessionStorage.setItem(key, m[1]);
-      } catch (e) { return; }
-      location.replace(clean + "?_v=" + Date.now());
-    }).catch(function () {});
-  } catch (e) {}
-}());
+        if(sessionStorage.getItem(key)===m[1])return;
+        sessionStorage.setItem(key,m[1]);
+      }catch(e){return;}
+      location.replace(clean+"?_v="+Date.now());
+    }).catch(function(){});
+  }catch(e){}
+})();
 </script>
 
 <style>
-* { box-sizing:border-box; }
-
-:root {
-  font-family:Arial,system-ui,sans-serif;
-  color-scheme:dark;
-}
-
-body {
+*{box-sizing:border-box}
+body{
   margin:0;
-  color:#edf5ff;
-  background:#0c1424;
+  background:#0b1322;
+  color:#f0f5ff;
+  font:15px Arial,sans-serif;
 }
-
-main {
+main{
   max-width:1000px;
   margin:auto;
-  padding:24px 15px 60px;
+  padding:22px 15px 60px;
 }
-
-h1 { margin:0 0 8px; font-size:30px; }
-h2 { margin:0 0 15px; font-size:21px; }
-
-p { color:#acbdd5; line-height:1.6; }
-
-.top {
+h1{margin:0;font-size:30px}
+h2{margin:0 0 14px;font-size:21px}
+p{color:#b5c5dc;line-height:1.5}
+.top,.bar,.stats{
   display:flex;
-  justify-content:space-between;
   flex-wrap:wrap;
-  gap:12px;
   align-items:center;
+  gap:13px;
 }
-
-.version {
-  color:#8beac1;
-  background:#193a35;
-  border-radius:8px;
-  padding:8px 12px;
-  font-size:13px;
+.top{justify-content:space-between}
+.version{
+  background:#204b3e;
+  color:#94f4bf;
+  padding:9px 12px;
+  border-radius:9px;
   font-weight:bold;
 }
-
-.panel {
-  background:#19263b;
-  border:1px solid #334762;
-  border-radius:16px;
-  padding:22px;
-  margin-top:20px;
+.panel{
+  margin-top:18px;
+  padding:20px;
+  border-radius:15px;
+  background:#1a293e;
+  border:1px solid #344762;
 }
-
-button {
-  background:#3f7ef5;
-  border:0;
-  border-radius:9px;
-  padding:12px 16px;
+button{
+  padding:11px 16px;
+  background:#397cf2;
   color:white;
   font-weight:bold;
-  font-size:14px;
+  border:0;
+  border-radius:9px;
   cursor:pointer;
-  margin:4px;
 }
-
-button:disabled { opacity:.4; cursor:default; }
-button.red { background:#ae4252; }
-button.green { background:#138768; }
-
-#status {
-  font-weight:bold;
-  color:#f3be68;
-  padding:12px 0;
+button:disabled{opacity:.45}
+.red{background:#a94955}
+.green{background:#168561}
+select,input{
+  width:100%;
+  padding:10px;
+  color:white;
+  background:#102033;
+  border:1px solid #526987;
+  border-radius:8px;
 }
-
-.stats {
-  display:flex;
-  gap:26px;
-  flex-wrap:wrap;
-}
-
-.stat {
-  color:#aabbd5;
-  font-size:13px;
-}
-
-.stat strong {
+label{
   display:block;
-  color:#81e8b5;
-  font-size:24px;
-  margin-top:5px;
+  margin-bottom:8px;
+  color:#b3c8e2;
 }
-
-.controller {
+#status{font-weight:bold;color:#ffce7c}
+.stats{margin-top:15px;gap:30px}
+.stats strong{color:#80edb3;font-size:21px}
+.grid{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:20px;
+  gap:18px;
 }
-
-.stick-panel {
-  text-align:center;
-  background:#111e30;
-  padding:20px 10px;
+.stickbox{
+  background:#102035;
   border-radius:14px;
+  padding:16px;
+  text-align:center;
 }
-
-.stick {
-  width:190px;
-  height:190px;
+.stick{
+  width:170px;
+  height:170px;
   max-width:100%;
-  background:#26364d;
-  border:4px solid #516783;
-  border-radius:50%;
-  margin:18px auto;
+  margin:15px auto;
   position:relative;
+  border-radius:50%;
+  border:3px solid #657a96;
+  background:#2b405a;
 }
-
-.stick:before,.stick:after {
+.stick:before,.stick:after{
   content:"";
   position:absolute;
-  background:#50647f;
+  background:#66819d;
 }
-
-.stick:before {
+.stick:before{
   width:1px;
   height:100%;
   left:50%;
-  top:0;
 }
-
-.stick:after {
+.stick:after{
   height:1px;
   width:100%;
-  left:0;
   top:50%;
 }
-
-.knob {
-  width:52px;
-  height:52px;
+.knob{
+  width:46px;
+  height:46px;
+  background:#64b6ff;
+  border:3px solid #d9f3ff;
   border-radius:50%;
-  background:#62b8ff;
-  border:4px solid #d6efff;
   position:absolute;
   left:50%;
   top:50%;
   transform:translate(-50%,-50%);
-  box-shadow:0 0 18px #439bfa60;
-  z-index:1;
-  transition:left .05s linear,top .05s linear;
+  z-index:2;
+  box-shadow:0 0 18px #42a7ff80;
 }
-
-.stick.active .knob {
-  background:#70efae;
-  border-color:#dcffec;
-  box-shadow:0 0 25px #2cf59c80;
-}
-
-.axis-values {
-  font-family:monospace;
-  font-size:16px;
-  color:#96dbff;
-}
-
-.buttons {
+.axes{font-family:monospace;color:#a0ddff}
+.buttons{
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:12px;
-}
-
-.btn {
-  text-align:center;
-  background:#111e30;
-  border:2px solid #3d506b;
-  border-radius:12px;
-  padding:16px 5px;
-  transition:background .08s;
-}
-
-.btn strong {
-  display:block;
-  font-size:20px;
-  margin-bottom:7px;
-}
-
-.btn small {
-  color:#99abc6;
-}
-
-.btn.pressed {
-  background:#11664c;
-  border-color:#71ffc0;
-  box-shadow:0 0 20px #39ec9750;
-}
-
-.btn.pressed strong { color:#aaffd5; }
-
-.bits {
-  display:grid;
-  grid-template-columns:repeat(8,minmax(0,1fr));
-  gap:7px;
-}
-
-.bit {
-  text-align:center;
-  background:#111e30;
-  padding:13px 2px;
-  border-radius:9px;
-  border:1px solid #354b65;
-}
-
-.bit.on {
-  background:#157253;
-  border-color:#7bffc1;
-}
-
-.bit strong { display:block; }
-.bit small { font-size:11px; color:#a5b6cc; }
-
-.value-table {
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-template-columns:repeat(5,1fr);
   gap:10px;
+  margin-top:18px;
 }
-
-.raw {
-  background:#101b2d;
-  border-radius:9px;
-  padding:12px;
+.btn{
   text-align:center;
-}
-
-.raw span {
-  display:block;
-  color:#91a5c2;
-  font-size:12px;
-  margin-bottom:7px;
-}
-
-.raw strong { font-size:23px; }
-
-pre {
-  background:#0a1220;
-  padding:16px;
+  border:2px solid #405773;
+  background:#102035;
   border-radius:10px;
-  max-height:270px;
+  padding:16px 3px;
+  font-weight:bold;
+  font-size:18px;
+}
+.btn.on{
+  background:#137250;
+  border-color:#8affc4;
+  box-shadow:0 0 15px #2ae99b60;
+}
+.settings{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:15px;
+}
+.setting{
+  background:#102035;
+  border-radius:10px;
+  padding:12px;
+}
+.setting label{font-size:13px}
+.note{font-size:12px}
+#game{
+  display:block;
+  width:100%;
+  height:auto;
+  border-radius:12px;
+  border:2px solid #506787;
+  background:#0d1a2d;
+  touch-action:none;
+}
+pre{
+  background:#0b1727;
+  border-radius:10px;
+  padding:14px;
+  max-height:220px;
   overflow:auto;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
-  color:#bdebd5;
   font-size:12px;
 }
-
-.note { font-size:13px; }
-
-@media(max-width:620px) {
-  .controller { grid-template-columns:1fr; }
-  .buttons { grid-template-columns:repeat(2,1fr); }
-  .bits { grid-template-columns:repeat(4,1fr); }
-  .value-table { grid-template-columns:repeat(2,1fr); }
+@media(max-width:600px){
+  .grid,.settings{grid-template-columns:1fr}
+  .buttons{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
@@ -307,670 +214,888 @@ pre {
 
 <div class="top">
   <div>
-    <h1>🎮 VEX IQ Controller Test</h1>
-    <p>Live USB Controller Visualizer</p>
+    <h1>🎮 VEX IQ Game Adapter</h1>
+    <p>USB-C · No Robot Brain · Game Controller Test</p>
   </div>
-  <div class="version" id="version">Build</div>
+  <span class="version" id="version"></span>
 </div>
 
-<div class="panel">
-  <h2>Connection</h2>
-
-  <button id="connect">Connect Controller</button>
-  <button id="disconnect" class="red" disabled>
-    Disconnect
-  </button>
-
-  <div id="status">Not connected</div>
-
+<section class="panel">
+  <h2>1. Connect Controller</h2>
+  <div class="bar">
+    <button id="connect">Connect VEX IQ</button>
+    <button id="disconnect" class="red" disabled>
+      Disconnect
+    </button>
+    <span id="status">Not connected</span>
+  </div>
   <p class="note">
     Select VEX Robotics IQ Controller —
-    Communications Port. No Robot Brain required.
+    Communications Port.
+    Close the Lemon VEX simulator first.
   </p>
-
   <div class="stats">
-    <div class="stat">
-      Packets received
-      <strong id="packets">0</strong>
-    </div>
-    <div class="stat">
-      Polls sent
-      <strong id="polls">0</strong>
-    </div>
-    <div class="stat">
-      Data age
-      <strong id="age">--</strong>
-    </div>
+    <div>Packets: <strong id="packets">0</strong></div>
+    <div>Polls: <strong id="polls">0</strong></div>
+    <div>Data age: <strong id="age">--</strong></div>
   </div>
-</div>
+</section>
 
-<div class="panel">
-  <h2>Live Joysticks</h2>
+<section class="panel">
+  <h2>2. Live Controller</h2>
 
-  <p>
-    Move the physical joysticks.
-    The circles below should follow your movements.
-  </p>
-
-  <div class="controller">
-    <div class="stick-panel">
-      <h2>LEFT JOYSTICK</h2>
-
-      <div class="stick" id="leftStick">
+  <div class="grid">
+    <div class="stickbox">
+      <b>LEFT JOYSTICK — MOVE</b>
+      <div class="stick">
         <div class="knob" id="leftKnob"></div>
       </div>
-
-      <div class="axis-values">
+      <div class="axes">
         X: <span id="lx">127</span>
-        &nbsp; Y: <span id="ly">127</span>
+        Y: <span id="ly">127</span>
       </div>
     </div>
 
-    <div class="stick-panel">
-      <h2>RIGHT JOYSTICK</h2>
-
-      <div class="stick" id="rightStick">
+    <div class="stickbox">
+      <b>RIGHT JOYSTICK — AIM</b>
+      <div class="stick">
         <div class="knob" id="rightKnob"></div>
       </div>
-
-      <div class="axis-values">
+      <div class="axes">
         X: <span id="rx">127</span>
-        &nbsp; Y: <span id="ry">127</span>
+        Y: <span id="ry">127</span>
       </div>
     </div>
   </div>
 
+  <div class="buttons" id="buttons"></div>
+
   <p class="note">
-    Center = approximately 127.
-    Right/up = approximately 254.
-    Left/down = approximately 0.
-    Right joystick Y is not fully verified yet.
+    Green means the physical button is pressed.
+    Right joystick vertical direction is provisional.
   </p>
-</div>
+</section>
 
-<div class="panel">
-  <h2>Button Test</h2>
+<section class="panel">
+  <h2>3. Customize Controls</h2>
 
-  <p>
-    Press buttons on the real controller.
-    A recognized button should turn green.
-  </p>
-
-  <div class="buttons">
-    <div class="btn" id="eUp">
-      <strong>E ↑</strong>
-      <small>Released</small>
+  <div class="settings">
+    <div class="setting">
+      <label>Controller — Shoot</label>
+      <select id="shootButton"></select>
     </div>
-
-    <div class="btn" id="eDown">
-      <strong>E ↓</strong>
-      <small>Released</small>
+    <div class="setting">
+      <label>Controller — Dash</label>
+      <select id="dashButton"></select>
     </div>
-
-    <div class="btn" id="otherA">
-      <strong>Other A</strong>
-      <small>Not mapped</small>
+    <div class="setting">
+      <label>Controller — Reset</label>
+      <select id="resetButton"></select>
     </div>
-
-    <div class="btn" id="otherB">
-      <strong>Other B</strong>
-      <small>Not mapped</small>
+    <div class="setting">
+      <label>Keyboard movement</label>
+      <select id="moveKeys">
+        <option value="wasd">W A S D</option>
+        <option value="arrows">Arrow keys</option>
+      </select>
+    </div>
+    <div class="setting">
+      <label>Keyboard Shoot</label>
+      <input id="shootKey" readonly>
+    </div>
+    <div class="setting">
+      <label>Keyboard Dash</label>
+      <input id="dashKey" readonly>
     </div>
   </div>
 
   <p class="note">
-    E ↑ and E ↓ are mapped from your measurements.
-    Other buttons are not mapped yet.
-    Watch the bit indicators below to discover them.
+    Click a keyboard field, then press a new key.
+    Settings are saved automatically in this browser.
+    You can also aim with the mouse and click to shoot.
   </p>
-</div>
+</section>
 
-<div class="panel">
-  <h2>Automatic Button Signal Finder</h2>
+<section class="panel">
+  <div class="top">
+    <h2>4. Space Target Practice</h2>
+    <b id="score">Score: 0</b>
+  </div>
+
+  <canvas id="game" width="900" height="430"></canvas>
 
   <p>
-    The boxes below represent button bits in USB data.
-    When you press an unmapped button,
-    look for a box turning green.
+    LEFT STICK: move your spaceship.
+    RIGHT STICK: aim.
+    SHOOT: fire at targets.
+    DASH: move faster briefly.
   </p>
 
-  <h3>Byte 13</h3>
-  <div class="bits" id="bits13"></div>
-
-  <h3>Byte 14</h3>
-  <div class="bits" id="bits14"></div>
-
-  <p class="note">
-    Green = bit is active.
-    These are live signals, not confirmed button names.
-  </p>
-</div>
-
-<div class="panel">
-  <h2>Live Axis Values</h2>
-  <div class="value-table">
-    <div class="raw">
-      <span>Byte 5</span>
-      <strong id="b5">127</strong>
-    </div>
-    <div class="raw">
-      <span>Byte 6</span>
-      <strong id="b6">127</strong>
-    </div>
-    <div class="raw">
-      <span>Byte 7</span>
-      <strong id="b7">127</strong>
-    </div>
-    <div class="raw">
-      <span>Byte 8</span>
-      <strong id="b8">127</strong>
-    </div>
-  </div>
-</div>
-
-<div class="panel">
-  <h2>Diagnostic</h2>
-
-  <button id="copy" class="green">
-    Copy Diagnostic
+  <button id="restart" class="green">
+    Restart Game
   </button>
+</section>
 
+<section class="panel">
+  <h2>5. Diagnostic</h2>
+  <button id="copy">Copy Diagnostic</button>
   <button id="clear">Clear Log</button>
-
-  <pre id="log">Waiting for controller...</pre>
-</div>
+  <pre id="log">Ready.</pre>
+</section>
 
 </main>
 
 <script>
 "use strict";
 
-const $ = id => document.getElementById(id);
+const $=id=>document.getElementById(id);
 
-const BUILD = document.querySelector(
+const BUILD=document.querySelector(
   'meta[name="build"]'
-).getAttribute("content");
+).content;
 
-$("version").textContent = "Build " + BUILD;
+$("version").textContent="Build "+BUILD;
 
-const POLL = new Uint8Array([
+const POLL=new Uint8Array([
   0xc9,0x36,0xb8,0x47,
   0x58,0x60,0x00,0x10,0x53
 ]);
 
-let port = null;
-let reader = null;
-let writer = null;
+const BUTTONS={
+  "E ↑":[13,8],
+  "E ↓":[13,2],
+  "F ↑":[13,4],
+  "F ↓":[13,1],
+  "L ↑":[13,32],
+  "L ↓":[13,16],
+  "R ↑":[13,128],
+  "R ↓":[13,64],
+  "L3":[14,1],
+  "R3":[14,2]
+};
 
-let running = false;
-let connecting = false;
-let stopping = false;
+const names=Object.keys(BUTTONS);
 
-let readTask = null;
-let pollTask = null;
+for(const name of names){
+  const el=document.createElement("div");
+  el.className="btn";
+  el.id="button-"+name;
+  el.textContent=name;
+  $("buttons").appendChild(el);
 
-let rxBuffer = [];
-let packets = 0;
-let polls = 0;
-
-let lastPacket = null;
-let lastReceived = 0;
-
-let logLines = [];
-let buttonEvents = [];
-let previousButtons = null;
-
-function hex(data) {
-  return Array.from(data)
-    .map(n => n.toString(16).padStart(2,"0"))
-    .join(" ");
-}
-
-function log(message) {
-  const entry = new Date().toLocaleTimeString() +
-    " " + message;
-
-  logLines.push(entry);
-
-  if (logLines.length > 100) logLines.shift();
-
-  $("log").textContent = logLines.join("\n");
-}
-
-function status(message,color) {
-  $("status").textContent = message;
-  $("status").style.color = color || "#ffcb78";
-}
-
-function controls() {
-  $("connect").disabled =
-    running || connecting || stopping;
-
-  $("disconnect").disabled =
-    !running || stopping;
-}
-
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve,ms));
-}
-
-function createBits(id,byteIndex) {
-  for(let i=0;i<8;i++) {
-    $(id).insertAdjacentHTML("beforeend",`
-      <div class="bit" id="bit${byteIndex}_${i}">
-        <strong>${1<<i}</strong>
-        <small>Bit ${i}</small>
-      </div>
-    `);
+  for(const id of [
+    "shootButton","dashButton","resetButton"
+  ]){
+    const option=document.createElement("option");
+    option.value=name;
+    option.textContent=name;
+    $(id).appendChild(option);
   }
 }
 
-createBits("bits13",13);
-createBits("bits14",14);
+let settings={
+  shootButton:"E ↑",
+  dashButton:"E ↓",
+  resetButton:"L3",
+  moveKeys:"wasd",
+  shootKey:"Space",
+  dashKey:"Shift"
+};
 
-function paintBits(index,value) {
-  for(let i=0;i<8;i++) {
-    const on = !!(value & (1<<i));
-
-    $("bit"+index+"_"+i).classList.toggle(
-      "on",on
-    );
-  }
-}
-
-function setButton(id,pressed) {
-  const el = $(id);
-
-  el.classList.toggle("pressed",pressed);
-
-  el.querySelector("small").textContent =
-    pressed ? "PRESSED!" : "Released";
-}
-
-function setStick(id,knob,x,y) {
-
-  const deadZone = 7;
-
-  if(Math.abs(x-127)<deadZone) x=127;
-  if(Math.abs(y-127)<deadZone) y=127;
-
-  const nx = Math.max(-1,Math.min(1,(x-127)/127));
-  const ny = Math.max(-1,Math.min(1,(y-127)/127));
-
-  // Move within the visible circular track.
-  $(knob).style.left = (50+nx*34)+"%";
-  $(knob).style.top = (50-ny*34)+"%";
-
-  $(id).classList.toggle(
-    "active",
-    Math.abs(nx)>0.05 || Math.abs(ny)>0.05
+try{
+  const saved=JSON.parse(
+    localStorage.getItem("vex-settings-v1")||"{}"
   );
+  Object.assign(settings,saved);
+}catch(e){}
+
+for(const id of Object.keys(settings)){
+  $(id).value=settings[id];
+
+  $(id).addEventListener("change",()=>{
+    settings[id]=$(id).value;
+    saveSettings();
+  });
 }
 
-function recordButtons(b13,b14) {
+function saveSettings(){
+  try{
+    localStorage.setItem(
+      "vex-settings-v1",
+      JSON.stringify(settings)
+    );
+  }catch(e){}
+}
 
-  if(!previousButtons) {
-    previousButtons = [b13,b14];
-    return;
+let capturing=null;
+
+for(const id of ["shootKey","dashKey"]){
+  $(id).onclick=()=>{
+    capturing=id;
+    $(id).value="Press a key...";
+  };
+}
+
+let port=null;
+let reader=null;
+let writer=null;
+let running=false;
+let connecting=false;
+let stopping=false;
+let readTask=null;
+let pollTask=null;
+
+let rxBuffer=[];
+let packets=0;
+let polls=0;
+let lastReceived=0;
+let lastPacket=null;
+
+let axes={lx:127,ly:127,rx:127,ry:127};
+let buttons={};
+let logs=[];
+let events=[];
+let keys=new Set();
+
+function log(s){
+  logs.push(new Date().toLocaleTimeString()+" "+s);
+  if(logs.length>90)logs.shift();
+  $("log").textContent=logs.join("\n");
+}
+
+function hex(a){
+  return Array.from(a).map(
+    n=>n.toString(16).padStart(2,"0")
+  ).join(" ");
+}
+
+function status(s,bad=false){
+  $("status").textContent=s;
+  $("status").style.color=bad?"#ff8585":"#80efb1";
+}
+
+function syncControls(){
+  $("connect").disabled=running||connecting||stopping;
+  $("disconnect").disabled=!running||stopping;
+}
+
+function setStick(id,x,y){
+  const norm=n=>{
+    if(Math.abs(n-127)<9)return 0;
+    return Math.max(-1,Math.min(1,(n-127)/127));
+  };
+
+  $(id).style.left=(50+norm(x)*34)+"%";
+  $(id).style.top=(50-norm(y)*34)+"%";
+}
+
+function displayPacket(p){
+  lastReceived=Date.now();
+  lastPacket=p;
+
+  axes={
+    rx:p[5],
+    ry:p[6],
+    lx:p[7],
+    ly:p[8]
+  };
+
+  for(const id of Object.keys(axes)){
+    $(id).textContent=axes[id];
   }
 
-  const previous13 = previousButtons[0];
-  const previous14 = previousButtons[1];
+  setStick("leftKnob",axes.lx,axes.ly);
+  setStick("rightKnob",axes.rx,axes.ry);
 
-  for(const item of [
-    {index:13,now:b13,old:previous13},
-    {index:14,now:b14,old:previous14}
-  ]) {
+  for(const name of names){
+    const [index,mask]=BUTTONS[name];
+    const pressed=!!(p[index]&mask);
+    const old=!!buttons[name];
 
-    const changed = item.now ^ item.old;
+    buttons[name]=pressed;
 
-    for(let bit=0;bit<8;bit++) {
+    $("button-"+name).classList.toggle(
+      "on",pressed
+    );
 
-      const mask=1<<bit;
+    if(pressed!==old){
+      const message=name+" "+
+        (pressed?"PRESSED":"RELEASED");
 
-      if(changed & mask) {
-        const pressed=!!(item.now & mask);
+      events.push(message);
+      if(events.length>60)events.shift();
 
-        const message =
-          "Byte "+item.index+
-          " bit "+bit+
-          " ("+mask+") "+
-          (pressed?"PRESSED":"RELEASED");
-
-        log(message);
-
-        buttonEvents.push(message);
-
-        if(buttonEvents.length>50) {
-          buttonEvents.shift();
-        }
-      }
+      log(message);
     }
   }
-
-  previousButtons=[b13,b14];
-}
-
-function displayPacket(p) {
-
-  lastPacket=p;
-  lastReceived=Date.now();
-
-  const rightX=p[5];
-  const rightY=p[6];
-  const leftX=p[7];
-  const leftY=p[8];
-
-  $("lx").textContent=leftX;
-  $("ly").textContent=leftY;
-  $("rx").textContent=rightX;
-  $("ry").textContent=rightY;
-
-  $("b5").textContent=rightX;
-  $("b6").textContent=rightY;
-  $("b7").textContent=leftX;
-  $("b8").textContent=leftY;
-
-  setStick("leftStick","leftKnob",leftX,leftY);
-  setStick("rightStick","rightKnob",rightX,rightY);
-
-  const b13=p[13];
-  const b14=p[14];
-
-  setButton("eUp",!!(b13 & 0x08));
-  setButton("eDown",!!(b13 & 0x02));
-
-  paintBits(13,b13);
-  paintBits(14,b14);
-
-  recordButtons(b13,b14);
 
   $("packets").textContent=packets;
 }
 
-function parseIncoming(data) {
+function parseIncoming(data){
+  for(const b of data)rxBuffer.push(b);
 
-  for(const byte of data) rxBuffer.push(byte);
-
-  if(rxBuffer.length>4096) {
-    rxBuffer=rxBuffer.slice(-2048);
-    log("Receive buffer trimmed");
+  if(rxBuffer.length>4096){
+    rxBuffer=rxBuffer.slice(-1024);
   }
 
-  while(rxBuffer.length>=4) {
-
+  while(rxBuffer.length>=4){
     if(
-      rxBuffer[0]!==0xaa ||
-      rxBuffer[1]!==0x55 ||
-      rxBuffer[2]!==0x58 ||
-      rxBuffer[3]!==0x13
-    ) {
+      rxBuffer[0]!==170||
+      rxBuffer[1]!==85||
+      rxBuffer[2]!==88||
+      rxBuffer[3]!==19
+    ){
       rxBuffer.shift();
       continue;
     }
 
-    if(rxBuffer.length<23) break;
+    if(rxBuffer.length<23)break;
 
     const packet=rxBuffer.splice(0,23);
-
     packets++;
 
     displayPacket(packet);
   }
 }
 
-async function readLoop() {
-
-  try {
-
+async function readLoop(){
+  try{
     reader=port.readable.getReader();
 
-    while(running) {
-
+    while(running){
       const result=await reader.read();
+      if(result.done)break;
 
-      if(result.done) break;
-
-      if(result.value) {
+      if(result.value){
         parseIncoming(result.value);
       }
     }
-
-  } catch(e) {
-
-    if(running) {
+  }catch(e){
+    if(running){
       log("READ ERROR: "+e.message);
-      status("Read error","#ff8585");
+      status("Read error",true);
       running=false;
+      setTimeout(disconnect,0);
     }
-
-  } finally {
-
-    if(reader) {
-      reader.releaseLock();
+  }finally{
+    if(reader){
+      try{reader.releaseLock();}catch(e){}
       reader=null;
     }
   }
 }
 
-async function pollLoop() {
+function delay(ms){
+  return new Promise(r=>setTimeout(r,ms));
+}
 
-  try {
-
-    while(running) {
-
+async function pollLoop(){
+  try{
+    while(running){
       await writer.write(POLL);
-
       polls++;
-
       $("polls").textContent=polls;
-
       await delay(100);
     }
-
-  } catch(e) {
-
-    if(running) {
+  }catch(e){
+    if(running){
       log("WRITE ERROR: "+e.message);
-      status("Write error","#ff8585");
+      status("Write error",true);
       running=false;
+      setTimeout(disconnect,0);
     }
   }
 }
 
-$("connect").onclick=async function() {
-
-  if(!("serial" in navigator)) {
-    status(
-      "Web Serial unavailable. Use Chrome/Edge on HTTPS.",
-      "#ff8585"
-    );
+$("connect").onclick=async()=>{
+  if(!navigator.serial){
+    status("Use Chrome or Edge on HTTPS.",true);
     return;
   }
 
   connecting=true;
-  controls();
+  syncControls();
 
-  try {
-
+  try{
     port=await navigator.serial.requestPort();
 
-    const info=port.getInfo();
-
-    log("BUILD: "+BUILD);
-    log("USB: "+JSON.stringify(info));
+    log("USB: "+JSON.stringify(port.getInfo()));
 
     await port.open({baudRate:115200});
 
     writer=port.writable.getWriter();
 
     rxBuffer=[];
-    previousButtons=null;
-
     running=true;
 
-    status("Connected — live data","#70e6b6");
-
-    log("Polling command: "+hex(POLL));
+    status("Connected — live data");
 
     readTask=readLoop();
     pollTask=pollLoop();
 
-  } catch(e) {
-
+  }catch(e){
+    log("CONNECT ERROR: "+e.message);
+    status("Connection failed",true);
     running=false;
 
-    log("CONNECT ERROR: "+e.message);
-
-    status("Connection failed: "+e.message,"#ff8585");
-
-    if(writer) {
-      try {writer.releaseLock();} catch(x) {}
+    if(writer){
+      try{writer.releaseLock();}catch(x){}
       writer=null;
     }
 
-    if(port) {
-      try {await port.close();} catch(x) {}
+    if(port){
+      try{await port.close();}catch(x){}
       port=null;
     }
-
-  } finally {
+  }finally{
     connecting=false;
-    controls();
+    syncControls();
   }
 };
 
-async function disconnect() {
-
-  if(stopping) return;
+async function disconnect(){
+  if(stopping)return;
 
   stopping=true;
   running=false;
+  syncControls();
 
-  controls();
-
-  if(reader) {
-    try {
-      await reader.cancel();
-    } catch(e) {}
+  if(reader){
+    try{await reader.cancel();}catch(e){}
   }
 
-  if(readTask) {
-    try {await readTask;} catch(e) {}
+  if(readTask){
+    try{await readTask;}catch(e){}
     readTask=null;
   }
 
-  if(pollTask) {
-    try {await pollTask;} catch(e) {}
+  if(pollTask){
+    try{await pollTask;}catch(e){}
     pollTask=null;
   }
 
-  if(writer) {
-    try {writer.releaseLock();} catch(e) {}
+  if(writer){
+    try{writer.releaseLock();}catch(e){}
     writer=null;
   }
 
-  if(port) {
-    try {await port.close();} catch(e) {
-      log("CLOSE ERROR: "+e.message);
-    }
+  if(port){
+    try{await port.close();}catch(e){}
     port=null;
   }
 
+  buttons={};
+  axes={lx:127,ly:127,rx:127,ry:127};
+
+  for(const name of names){
+    $("button-"+name).classList.remove("on");
+  }
+
+  setStick("leftKnob",127,127);
+  setStick("rightKnob",127,127);
+
   stopping=false;
-
   status("Disconnected");
-  log("Disconnected");
-
-  setButton("eUp",false);
-  setButton("eDown",false);
-
-  setStick("leftStick","leftKnob",127,127);
-  setStick("rightStick","rightKnob",127,127);
-
-  paintBits(13,0);
-  paintBits(14,0);
-
-  controls();
+  syncControls();
 }
 
 $("disconnect").onclick=disconnect;
 
-$("clear").onclick=function() {
-  logLines=[];
-  buttonEvents=[];
-  $("log").textContent="Log cleared";
-};
-
-$("copy").onclick=async function() {
-
-  const report=[
-    "VEX IQ Visual Controller Test",
-    "Build Version: "+BUILD,
-    "Browser: "+navigator.userAgent,
-    "Status: "+$("status").textContent,
-    "Packets: "+packets,
-    "Polls sent: "+polls,
-    "Last data age: "+
-      (lastReceived
-        ? Date.now()-lastReceived+" ms"
-        : "none"),
-    "Last packet: "+
-      (lastPacket?hex(lastPacket):"none"),
-    "",
-    "JOYSTICKS:",
-    "Left X: "+$("lx").textContent,
-    "Left Y: "+$("ly").textContent,
-    "Right X: "+$("rx").textContent,
-    "Right Y: "+$("ry").textContent,
-    "",
-    "BUTTON EVENTS:",
-    ...buttonEvents,
-    "",
-    "LOG:",
-    ...logLines
-  ].join("\n");
-
-  try {
-
-    await navigator.clipboard.writeText(report);
-
-    $("copy").textContent="Copied!";
-
-    setTimeout(()=>{
-      $("copy").textContent="Copy Diagnostic";
-    },1400);
-
-  } catch(e) {
-    log("COPY ERROR: "+e.message);
-  }
-};
-
-// Show whether packets are still arriving.
-setInterval(function() {
-
-  if(!lastReceived) {
+setInterval(()=>{
+  if(!lastReceived){
     $("age").textContent="--";
     return;
   }
 
   const age=Date.now()-lastReceived;
 
-  $("age").textContent=
-    age<1000 ? age+"ms" : (age/1000).toFixed(1)+"s";
+  $("age").textContent=age+" ms";
 
-  if(running && age>2000) {
-    status("Connected — no recent data","#ffcb78");
-  } else if(running && age<=2000) {
-    status("Connected — live data","#70e6b6");
+  if(running){
+    status(
+      age>2000?
+      "Connected — no recent data":
+      "Connected — live data",
+      age>2000
+    );
+  }
+},300);
+
+// GAME
+
+const canvas=$("game");
+const ctx=canvas.getContext("2d");
+
+let ship;
+let bullets;
+let targets;
+let score;
+let shots;
+let mouseAim=null;
+let mouseFire=false;
+let lastShot=0;
+let lastDash=0;
+let lastTick=0;
+let resetHeld=false;
+
+function spawnTarget(){
+  targets.push({
+    x:350+Math.random()*490,
+    y:40+Math.random()*340,
+    r:17+Math.random()*10
+  });
+}
+
+function resetGame(){
+  ship={x:140,y:215};
+  bullets=[];
+  targets=[];
+  score=0;
+  shots=0;
+
+  for(let i=0;i<5;i++)spawnTarget();
+
+  $("score").textContent="Score: 0";
+}
+
+function axis(v){
+  const d=v-127;
+  if(Math.abs(d)<12)return 0;
+  return Math.max(-1,Math.min(1,d/127));
+}
+
+function keyMatch(code,key){
+  if(key==="Shift"){
+    return code==="ShiftLeft"||
+           code==="ShiftRight";
+  }
+  return code===key;
+}
+
+function keyboardAction(key){
+  return Array.from(keys).some(
+    code=>keyMatch(code,key)
+  );
+}
+
+function action(name){
+  if(buttons[settings[name+"Button"]])return true;
+
+  if(name==="shoot"){
+    return keyboardAction(settings.shootKey)||mouseFire;
   }
 
-},300);
+  if(name==="dash"){
+    return keyboardAction(settings.dashKey);
+  }
+
+  return false;
+}
+
+function movement(){
+  let x=axis(axes.lx);
+  let y=-axis(axes.ly);
+
+  const wasd=settings.moveKeys==="wasd";
+
+  const up=wasd?"KeyW":"ArrowUp";
+  const down=wasd?"KeyS":"ArrowDown";
+  const left=wasd?"KeyA":"ArrowLeft";
+  const right=wasd?"KeyD":"ArrowRight";
+
+  if(keys.has(up))y--;
+  if(keys.has(down))y++;
+  if(keys.has(left))x--;
+  if(keys.has(right))x++;
+
+  const len=Math.hypot(x,y);
+
+  if(len>1){
+    x/=len;
+    y/=len;
+  }
+
+  return {x,y};
+}
+
+function updateGame(dt,now){
+  const move=movement();
+
+  let speed=225;
+
+  if(action("dash")&&now-lastDash>450){
+    lastDash=now;
+    speed=680;
+  }
+
+  ship.x=Math.max(20,Math.min(
+    880,ship.x+move.x*speed*dt
+  ));
+
+  ship.y=Math.max(20,Math.min(
+    410,ship.y+move.y*speed*dt
+  ));
+
+  let ax=1,ay=0;
+
+  const rx=axis(axes.rx);
+  const ry=-axis(axes.ry);
+
+  if(Math.hypot(rx,ry)>.2){
+    ax=rx;
+    ay=ry;
+  }else if(mouseAim){
+    ax=mouseAim.x-ship.x;
+    ay=mouseAim.y-ship.y;
+  }
+
+  const len=Math.hypot(ax,ay)||1;
+  ax/=len;
+  ay/=len;
+
+  if(action("shoot")&&now-lastShot>190){
+    lastShot=now;
+    shots++;
+
+    bullets.push({
+      x:ship.x+ax*22,
+      y:ship.y+ay*22,
+      vx:ax*530,
+      vy:ay*530
+    });
+  }
+
+  for(const b of bullets){
+    b.x+=b.vx*dt;
+    b.y+=b.vy*dt;
+  }
+
+  bullets=bullets.filter(b=>
+    b.x>-20&&b.x<920&&
+    b.y>-20&&b.y<450
+  );
+
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+
+    const index=targets.findIndex(t=>
+      Math.hypot(t.x-b.x,t.y-b.y)<t.r+5
+    );
+
+    if(index>=0){
+      targets.splice(index,1);
+      bullets.splice(i,1);
+      score+=10;
+      spawnTarget();
+    }
+  }
+
+  const reset=!!buttons[settings.resetButton];
+
+  if(reset&&!resetHeld)resetGame();
+  resetHeld=reset;
+
+  $("score").textContent="Score: "+score;
+
+  return {ax,ay};
+}
+
+function drawGame(aim){
+  ctx.clearRect(0,0,900,430);
+
+  ctx.fillStyle="#0c1a2c";
+  ctx.fillRect(0,0,900,430);
+
+  ctx.strokeStyle="#22374d";
+
+  for(let x=0;x<900;x+=45){
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,430);
+    ctx.stroke();
+  }
+
+  for(let y=0;y<430;y+=43){
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(900,y);
+    ctx.stroke();
+  }
+
+  for(const t of targets){
+    ctx.beginPath();
+    ctx.arc(t.x,t.y,t.r,0,Math.PI*2);
+
+    ctx.fillStyle="#ffb44f";
+    ctx.shadowColor="#ffa83b";
+    ctx.shadowBlur=17;
+    ctx.fill();
+    ctx.shadowBlur=0;
+
+    ctx.beginPath();
+    ctx.arc(t.x,t.y,t.r*.4,0,Math.PI*2);
+    ctx.fillStyle="#804516";
+    ctx.fill();
+  }
+
+  for(const b of bullets){
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,5,0,Math.PI*2);
+    ctx.fillStyle="#9fffe3";
+    ctx.fill();
+  }
+
+  const a=Math.atan2(aim.ay,aim.ax);
+
+  ctx.save();
+  ctx.translate(ship.x,ship.y);
+  ctx.rotate(a);
+
+  ctx.fillStyle="#56b5ff";
+  ctx.strokeStyle="#d2f1ff";
+  ctx.lineWidth=2;
+
+  ctx.beginPath();
+  ctx.moveTo(24,0);
+  ctx.lineTo(-14,-13);
+  ctx.lineTo(-9,0);
+  ctx.lineTo(-14,13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle="#b3c7df";
+  ctx.font="15px Arial";
+  ctx.fillText(
+    "MOVE · AIM · SHOOT THE TARGETS",15,25
+  );
+}
+
+function frame(now){
+  const dt=Math.min(.04,(now-lastTick)/1000||.016);
+  lastTick=now;
+
+  const aim=updateGame(dt,now);
+  drawGame(aim);
+
+  requestAnimationFrame(frame);
+}
+
+resetGame();
+requestAnimationFrame(frame);
+
+function mousePosition(e){
+  const r=canvas.getBoundingClientRect();
+
+  mouseAim={
+    x:(e.clientX-r.left)*900/r.width,
+    y:(e.clientY-r.top)*430/r.height
+  };
+}
+
+canvas.addEventListener("pointermove",mousePosition);
+
+canvas.addEventListener("pointerdown",e=>{
+  mousePosition(e);
+  mouseFire=true;
+});
+
+window.addEventListener("pointerup",()=>{
+  mouseFire=false;
+});
+
+canvas.addEventListener("pointerleave",()=>{
+  mouseFire=false;
+});
+
+window.addEventListener("keydown",e=>{
+  if(capturing){
+    e.preventDefault();
+    settings[capturing]=e.code;
+    $(capturing).value=e.code;
+    saveSettings();
+    capturing=null;
+    return;
+  }
+
+  if(e.target.closest("input,select"))return;
+
+  keys.add(e.code);
+
+  if([
+    "Space","ArrowUp","ArrowDown",
+    "ArrowLeft","ArrowRight"
+  ].includes(e.code)){
+    e.preventDefault();
+  }
+});
+
+window.addEventListener("keyup",e=>{
+  keys.delete(e.code);
+});
+
+window.addEventListener("blur",()=>{
+  keys.clear();
+  mouseFire=false;
+});
+
+$("restart").onclick=resetGame;
+
+// DIAGNOSTIC
+
+$("clear").onclick=()=>{
+  logs=[];
+  events=[];
+  $("log").textContent="Log cleared";
+};
+
+$("copy").onclick=async()=>{
+  const report=[
+    "VEX IQ Game Adapter",
+    "Build Version: "+BUILD,
+    "Browser: "+navigator.userAgent,
+    "Status: "+$("status").textContent,
+    "Packets: "+packets,
+    "Polls sent: "+polls,
+    "Last data age: "+
+      (lastReceived?
+        Date.now()-lastReceived+" ms":"none"),
+    "Last packet: "+
+      (lastPacket?hex(lastPacket):"none"),
+    "Axes: "+JSON.stringify(axes),
+    "Buttons: "+JSON.stringify(buttons),
+    "Settings: "+JSON.stringify(settings),
+    "Game score: "+score,
+    "Shots fired: "+shots,
+    "",
+    "BUTTON EVENTS:",
+    ...events,
+    "",
+    "LOG:",
+    ...logs
+  ].join("\n");
+
+  try{
+    await navigator.clipboard.writeText(report);
+
+    $("copy").textContent="Copied!";
+
+    setTimeout(()=>{
+      $("copy").textContent="Copy Diagnostic";
+    },1500);
+  }catch(e){
+    log("COPY ERROR: "+e.message);
+  }
+};
 
 window.addEventListener("beforeunload",()=>{
   running=false;
 });
-</script>
 
+log("BUILD VERSION: "+BUILD);
+</script>
 </body>
 </html>
