@@ -11,7 +11,7 @@ Open your game's `index.html` file and paste the following code **right before `
 (function () {
   const script = document.createElement("script");
   script.src =
-    "https://dim1024.github.io/vex-game-adapter/vex-controller.js?v=" +
+    "https://dim1024.github.io/VexIQ-Adapter/vex-controller.js?v=" +
     Date.now();
   document.body.appendChild(script);
 })();
