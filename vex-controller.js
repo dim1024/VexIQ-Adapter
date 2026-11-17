@@ -1,197 +1,351 @@
 
-/* VEX_BUILD: 2026-11-17.6 */
-/* VEX IQ Universal Game Mapper: USB-C controller, Chrome Web Serial. */
-(function () {
+/* VEX_BUILD: 2026-11-17.9 */
+/* VEX IQ 2nd Gen: universal browser adapter. No Robot Brain. */
+(() => {
 'use strict';
 if (window.VEXMapper) return;
-const VERSION = '2026-11-17.6';
-const POLL = new Uint8Array([0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53]);
-const BUTTONS = {'E ↑':[13,8],'E ↓':[13,2],'F ↑':[13,4],'F ↓':[13,1],'L ↑':[13,32],'L ↓':[13,16],'R ↑':[13,128],'R ↓':[13,64],L3:[14,1],R3:[14,2]};
-const defaults = {'Left ↑':'w','Left ↓':'s','Left ←':'a','Left →':'d','E ↑':'j','E ↓':'q','F ↑':'r','F ↓':'f','L ↑':'e','L ↓':'c','R ↑':'v','R ↓':'1',L3:'p',R3:'k','Right ↑':'none','Right ↓':'none','Right ←':'none','Right →':'none','Right aim':'mouse-move','Mouse speed':2.00};
-const storageKey = 'vex-mapper:' + location.origin + location.pathname;
-let mapping = {...defaults};
-try { Object.assign(mapping, JSON.parse(localStorage.getItem(storageKey)||'{}')); } catch(e) {}
-let port=null,reader=null,writer=null,readTask=null,pollTask=null,active=false,closing=false,connecting=false;
-let buffer=[],packets=0,polls=0,lastPacketAt=0,lastError='';
-let physical={},held={},nativeHeld=new Set(),mousePressTarget={};
-let aimX=innerWidth/2,aimY=innerHeight/2;
-let host,shadow,pill,pillText,dot,dialog,stateEl,cursorEl,rowsEl,captureBanner,slider,sliderText,connectBtn,disconnectBtn;
-let panelOpen=false,captureName=null,uiReady=false;
-const mapButtons={};
 
-function save(){
+const VERSION = '2026-11-17.9';
+const POLL = new Uint8Array([
+  0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53
+]);
+
+const BUTTONS = {
+  'E ↑':[13,8],'E ↓':[13,2],
+  'F ↑':[13,4],'F ↓':[13,1],
+  'L ↑':[13,32],'L ↓':[13,16],
+  'R ↑':[13,128],'R ↓':[13,64],
+  L3:[14,1],R3:[14,2]
+};
+
+const INPUTS = [
+  'Left ↑','Left ↓','Left ←','Left →',
+  'Right ↑','Right ↓','Right ←','Right →',
+  ...Object.keys(BUTTONS)
+];
+
+const DEFAULT_ASSIGN = {
+  w:'Left ↑',s:'Left ↓',a:'Left ←',d:'Left →',
+  ArrowUp:'Left ↑',ArrowDown:'Left ↓',
+  ArrowLeft:'Left ←',ArrowRight:'Left →',
+  j:'E ↑',q:'E ↓',r:'F ↑',f:'F ↓',
+  e:'L ↑',c:'L ↓',v:'R ↑',
+  '1':'R ↓',p:'L3',k:'none',
+  Space:'E ↑',
+  Enter:'R3'
+};
+
+const STORAGE =
+  'vex-auto-map:' + location.origin + location.pathname;
+
+let assigned = {};
+let actions = [];
+let speed = 1;
+let aimEnabled = true;
+
+let port = null;
+let reader = null;
+let writer = null;
+let readJob = null;
+let pollJob = null;
+let running = false;
+let busy = false;
+
+let buffer = [];
+let packets = 0;
+let polls = 0;
+let lastData = 0;
+let lastError = '';
+
+let latest = {};
+let raw = {};
+let held = {};
+let nativeKeys = new Set();
+let mouseTargets = {};
+
+let aimX = innerWidth / 2;
+let aimY = innerHeight / 2;
+let panelOpen = false;
+let learnKey = null;
+
+let host,shadow,pill,pillText,dot,panel;
+let statusEl,rowsEl,hint,warning,warningText;
+let connectBtn,disconnectBtn,slider,speedText;
+let aimBtn,cursor,conflict = null;
+
+const controls = new Map();
+
+const saved = (() => {
   try {
-    localStorage.setItem(storageKey,JSON.stringify(mapping));
-  } catch(e){}
+    return JSON.parse(
+      localStorage.getItem(STORAGE) || '{}'
+    );
+  } catch {
+    return {};
+  }
+})();
+
+if (Number.isFinite(saved.speed)) {
+  speed = Math.min(3.5,Math.max(.5,saved.speed));
 }
 
-function node(tag,cls,txt,parent){
-  const el=document.createElement(tag);
-  if(cls)el.className=cls;
-  if(txt!==undefined&&txt!==null)el.textContent=txt;
-  if(parent)parent.appendChild(el);
-  return el;
+if (typeof saved.aimEnabled === 'boolean') {
+  aimEnabled = saved.aimEnabled;
 }
 
-function normalizeKey(k){
-  return k==='Space'?' ':k;
+function save() {
+  try {
+    localStorage.setItem(
+      STORAGE,
+      JSON.stringify({assigned,speed,aimEnabled})
+    );
+  } catch {}
 }
 
-function keyCode(k){
-  if(k==='Space'||k===' ')return 'Space';
-  if(/^Arrow(Up|Down|Left|Right)$/.test(k))return k;
-  if(/^[a-z]$/i.test(k))return 'Key'+k.toUpperCase();
-  if(/^[0-9]$/.test(k))return 'Digit'+k;
-  if(k==='Shift')return 'ShiftLeft';
-  if(k==='Control')return 'ControlLeft';
+function el(tag,parent,cls,txt) {
+  const e = document.createElement(tag);
+
+  if (cls) e.className = cls;
+  if (txt != null) e.textContent = txt;
+  if (parent) parent.appendChild(e);
+
+  return e;
+}
+
+function keyCode(k) {
+  if (k === 'Space' || k === ' ') return 'Space';
+  if (k === 'Shift') return 'ShiftLeft';
+  if (k === 'Control') return 'ControlLeft';
+  if (k === 'Enter') return 'Enter';
+
+  if (/^Arrow(Up|Down|Left|Right)$/.test(k)) {
+    return k;
+  }
+
+  if (/^[a-z]$/i.test(k)) {
+    return 'Key' + k.toUpperCase();
+  }
+
+  if (/^[0-9]$/.test(k)) {
+    return 'Digit' + k;
+  }
+
   return k;
 }
 
-function emitKey(k,down){
-  const evt=new KeyboardEvent(
-    down?'keydown':'keyup',
-    {
-      key:normalizeKey(k),
-      code:keyCode(k),
-      bubbles:true,
-      cancelable:true,
-      shiftKey:k==='Shift',
-      ctrlKey:k==='Control'
-    }
-  );
-  window.dispatchEvent(evt);
+function canonical(k) {
+  if (k === ' ') return 'Space';
+
+  if (/^Key[A-Z]$/.test(k)) {
+    return k[3].toLowerCase();
+  }
+
+  if (/^Digit[0-9]$/.test(k)) {
+    return k[5];
+  }
+
+  if (/^Numpad[0-9]$/.test(k)) {
+    return k;
+  }
+
+  return /^[A-Z]$/.test(k) ? k.toLowerCase() : k;
 }
 
-// Track physical keyboard separately from VEX controller.
-window.addEventListener('keydown',e=>{
-  if(e.isTrusted)nativeHeld.add(e.code);
+function display(k) {
+  if (k === 'Space') return 'Space';
+  if (k === 'mouse-left') return 'Left click';
+  if (k === 'mouse-right') return 'Right click';
+  return k;
+}
+
+function emitKey(k,down) {
+  window.dispatchEvent(
+    new KeyboardEvent(
+      down ? 'keydown' : 'keyup',
+      {
+        bubbles:true,
+        cancelable:true,
+        key:k === 'Space' ? ' ' : k,
+        code:keyCode(k),
+        shiftKey:k === 'Shift',
+        ctrlKey:k === 'Control'
+      }
+    )
+  );
+}
+
+window.addEventListener('keydown',e => {
+  if (e.isTrusted) nativeKeys.add(e.code);
 },true);
 
-window.addEventListener('keyup',e=>{
-  if(!e.isTrusted)return;
-  nativeHeld.delete(e.code);
-  const activeOutput=Object.keys(held).find(
-    k=>held[k]>0&&keyCode(k)===e.code
-  );
-  if(activeOutput){
-    queueMicrotask(()=>{
-      if(held[activeOutput]>0)emitKey(activeOutput,true);
-    });
+window.addEventListener('keyup',e => {
+  if (!e.isTrusted) return;
+
+  nativeKeys.delete(e.code);
+
+  for (const k of Object.keys(held)) {
+    if (held[k] > 0 && keyCode(k) === e.code) {
+      queueMicrotask(() => {
+        if (held[k] > 0) emitKey(k,true);
+      });
+    }
   }
 },true);
 
-function mouseTarget(){
-  let el=document.elementFromPoint(aimX,aimY);
-  return (el===host||!el)?document.body:el;
+function targetAtAim() {
+  const t = document.elementFromPoint(aimX,aimY);
+  return !t || t === host ? document.body : t;
 }
 
-function emitMouse(button,down){
-  const target=down
-    ?mouseTarget()
-    :(mousePressTarget[button]||mouseTarget());
+function mouseEvent(out,down) {
+  const n = out === 'mouse-left' ? 0 : 2;
 
-  if(down)mousePressTarget[button]=target;
+  const t = down
+    ? targetAtAim()
+    : (mouseTargets[n] || targetAtAim());
 
-  const opts={
+  if (down) mouseTargets[n] = t;
+
+  const opts = {
     bubbles:true,
     cancelable:true,
     clientX:aimX,
     clientY:aimY,
-    button,
-    buttons:down?(button===0?1:2):0
+    button:n,
+    buttons:down ? (n === 0 ? 1 : 2) : 0
   };
 
-  target.dispatchEvent(
+  t.dispatchEvent(
     new MouseEvent(
-      down?'mousedown':'mouseup',
+      down ? 'mousedown' : 'mouseup',
       opts
     )
   );
 
-  if(!down){
-    if(button===0){
-      target.dispatchEvent(new MouseEvent('click',opts));
+  if (!down) {
+    if (n === 0) {
+      t.dispatchEvent(
+        new MouseEvent('click',opts)
+      );
     }
-    delete mousePressTarget[button];
+
+    delete mouseTargets[n];
   }
 }
 
-function output(o,down){
-  if(!o||o==='none'||o==='mouse-move')return;
+function emit(k,down) {
+  const n = held[k] || 0;
 
-  let old=held[o]||0;
+  if (down) {
+    held[k] = n + 1;
+    if (n) return;
+  } else {
+    if (!n) return;
 
-  if(down){
-    held[o]=old+1;
-    if(old)return;
-  }else{
-    if(!old)return;
-    held[o]=old-1;
-    if(old!==1)return;
+    held[k] = n - 1;
+    if (n !== 1) return;
   }
 
-  if(o==='mouse-left'||o==='mouse-right'){
-    emitMouse(o==='mouse-left'?0:2,down);
-  }else if(down||!nativeHeld.has(keyCode(o))){
-    emitKey(o,down);
+  if (k === 'mouse-left' || k === 'mouse-right') {
+    mouseEvent(k,down);
+  } else if (down || !nativeKeys.has(keyCode(k))) {
+    emitKey(k,down);
   }
 }
 
-function setPhysical(name,pressed){
-  pressed=!!pressed;
-
-  if(!!physical[name]===pressed)return;
-
-  physical[name]=pressed;
-  output(mapping[name],pressed);
-}
-
-function releaseAll(){
-  Object.keys(physical).forEach(n=>{
-    setPhysical(n,false);
-  });
-
-  Object.keys(held).forEach(k=>{
-    if(held[k]){
-      held[k]=1;
-      output(k,false);
+function release() {
+  for (const k of Object.keys(held)) {
+    if (held[k] > 0) {
+      held[k] = 1;
+      emit(k,false);
     }
-  });
+  }
 
-  physical={};
-  held={};
-  mousePressTarget={};
+  held = {};
+  mouseTargets = {};
 }
 
-function axis(v){
-  const d=v-127;
-  return Math.abs(d)<24?0:d;
+function applyInputs(next) {
+  raw = next;
+
+  if (learnKey) {
+    for (const input of INPUTS) {
+      if (next[input] && !latest[input]) {
+        requestAssignment(learnKey,input);
+        break;
+      }
+    }
+  }
+
+  latest = {...next};
+
+  if (panelOpen) {
+    release();
+    return;
+  }
+
+  const nextCounts = {};
+
+  for (const a of actions) {
+    const input = assigned[a.key];
+
+    if (
+      input &&
+      input !== 'none' &&
+      next[input]
+    ) {
+      nextCounts[a.key] =
+        (nextCounts[a.key] || 0) + 1;
+    }
+  }
+
+  for (
+    const k of new Set([
+      ...Object.keys(nextCounts),
+      ...Object.keys(held)
+    ])
+  ) {
+    const prev = held[k] || 0;
+    const now = nextCounts[k] || 0;
+
+    if (!prev && now) emit(k,true);
+
+    if (prev && !now) {
+      held[k] = 1;
+      emit(k,false);
+    }
+
+    if (now) held[k] = now;
+  }
 }
 
-function moveAim(dx,dy){
-  if(
-    mapping['Right aim']!=='mouse-move'||
-    (!dx&&!dy)||
-    panelOpen
-  )return;
+function axis(x) {
+  const d = x - 127;
+  return Math.abs(d) < 24 ? 0 : d;
+}
 
-  const gain=Number(mapping['Mouse speed'])||0.30;
+function aim(rx,ry) {
+  if (
+    panelOpen ||
+    !aimEnabled ||
+    (!rx && !ry)
+  ) return;
 
-  aimX=Math.max(
+  aimX = Math.max(
     0,
-    Math.min(innerWidth-1,aimX+dx*gain)
+    Math.min(innerWidth - 1,aimX + rx * speed)
   );
 
-  aimY=Math.max(
+  aimY = Math.max(
     0,
-    Math.min(innerHeight-1,aimY-dy*gain)
+    Math.min(innerHeight - 1,aimY - ry * speed)
   );
 
-  cursorEl.style.left=aimX+'px';
-  cursorEl.style.top=aimY+'px';
-  cursorEl.hidden=false;
+  cursor.style.left = aimX + 'px';
+  cursor.style.top = aimY + 'px';
+  cursor.hidden = false;
 
-  mouseTarget().dispatchEvent(
+  targetAtAim().dispatchEvent(
     new MouseEvent('mousemove',{
       bubbles:true,
       cancelable:true,
@@ -201,623 +355,1018 @@ function moveAim(dx,dy){
   );
 }
 
-function packet(p){
+function processPacket(p) {
   packets++;
-  lastPacketAt=Date.now();
+  lastData = Date.now();
 
-  let rx=axis(p[5]);
-  let ry=axis(p[6]);
-  let lx=axis(p[7]);
-  let ly=axis(p[8]);
+  const rx = axis(p[5]);
+  const ry = axis(p[6]);
+  const lx = axis(p[7]);
+  const ly = axis(p[8]);
 
-  setPhysical('Left ←',lx<0);
-  setPhysical('Left →',lx>0);
-  setPhysical('Left ↑',ly>0);
-  setPhysical('Left ↓',ly<0);
+  const next = {
+    'Left ↑':ly > 0,
+    'Left ↓':ly < 0,
+    'Left ←':lx < 0,
+    'Left →':lx > 0,
+    'Right ↑':ry > 0,
+    'Right ↓':ry < 0,
+    'Right ←':rx < 0,
+    'Right →':rx > 0
+  };
 
-  setPhysical('Right ←',rx<0);
-  setPhysical('Right →',rx>0);
-  setPhysical('Right ↑',ry>0);
-  setPhysical('Right ↓',ry<0);
-
-  Object.keys(BUTTONS).forEach(n=>{
-    const [i,m]=BUTTONS[n];
-    setPhysical(n,!!(p[i]&m));
-  });
-
-  moveAim(rx,ry);
-}
-
-function incoming(data){
-  for(const b of data)buffer.push(b);
-
-  if(buffer.length>4096){
-    buffer=buffer.slice(-256);
+  for (
+    const [name,[b,mask]] of Object.entries(BUTTONS)
+  ) {
+    next[name] = !!(p[b] & mask);
   }
 
-  while(buffer.length>=4){
-    if(
-      buffer[0]!==170||
-      buffer[1]!==85||
-      buffer[2]!==88||
-      buffer[3]!==19
-    ){
+  applyInputs(next);
+  aim(rx,ry);
+}
+
+function receive(chunk) {
+  for (const b of chunk) buffer.push(b);
+
+  if (buffer.length > 4096) {
+    buffer = buffer.slice(-512);
+  }
+
+  while (buffer.length >= 4) {
+    if (
+      buffer[0] !== 170 ||
+      buffer[1] !== 85 ||
+      buffer[2] !== 88 ||
+      buffer[3] !== 19
+    ) {
       buffer.shift();
       continue;
     }
 
-    if(buffer.length<23)break;
+    if (buffer.length < 23) break;
 
-    packet(buffer.splice(0,23));
+    processPacket(buffer.splice(0,23));
   }
 }
 
-const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const sleep = ms =>
+  new Promise(resolve => setTimeout(resolve,ms));
 
-async function readLoop(){
-  try{
-    reader=port.readable.getReader();
+async function readLoop() {
+  try {
+    reader = port.readable.getReader();
 
-    while(active){
-      const r=await reader.read();
+    while (running) {
+      const r = await reader.read();
 
-      if(r.done)break;
-      if(r.value)incoming(r.value);
+      if (r.done) break;
+      if (r.value) receive(r.value);
     }
-  }catch(e){
-    if(active)fail('Read error: '+e.message);
-  }finally{
-    if(reader){
-      try{reader.releaseLock();}catch(e){}
-      reader=null;
+  } catch (e) {
+    if (running) fail('Read: ' + e.message);
+  } finally {
+    if (reader) {
+      try {
+        reader.releaseLock();
+      } catch {}
+
+      reader = null;
     }
   }
 }
 
-async function pollLoop(){
-  try{
-    while(active){
+async function pollLoop() {
+  try {
+    while (running) {
       await writer.write(POLL);
       polls++;
       await sleep(100);
     }
-  }catch(e){
-    if(active)fail('Write error: '+e.message);
+  } catch (e) {
+    if (running) fail('Write: ' + e.message);
   }
 }
 
-function status(message,kind=''){
-  if(!uiReady)return;
+function status(msg,kind = '') {
+  if (statusEl) {
+    statusEl.textContent = msg;
+    statusEl.dataset.kind = kind;
+  }
 
-  stateEl.textContent=message;
-  stateEl.dataset.kind=kind;
-  dot.dataset.kind=kind;
+  if (dot) dot.dataset.kind = kind;
 
-  pillText.textContent=active
-    ?'Controller Connected'
-    :'+ Add Controller';
+  if (pillText) {
+    pillText.textContent = running
+      ? 'Controller Connected'
+      : '+ Add Controller';
+  }
 }
 
-function fail(msg){
-  lastError=msg;
-  active=false;
-  releaseAll();
+function fail(msg) {
+  lastError = msg;
+  running = false;
+
+  release();
   status(msg,'error');
+
   setTimeout(disconnect,0);
 }
 
-async function connect(){
-  if(active||connecting||closing)return;
+async function connect() {
+  if (busy || running) return;
 
-  if(!navigator.serial){
+  if (!navigator.serial) {
     status(
-      'Web Serial requires Chrome/Edge on HTTPS.',
+      'Web Serial requires Chrome or Edge on HTTPS',
       'error'
     );
     return;
   }
 
-  connecting=true;
-  connectBtn.disabled=true;
+  busy = true;
+  connectBtn.disabled = true;
 
-  try{
-    port=await navigator.serial.requestPort();
+  try {
+    port = await navigator.serial.requestPort();
 
-    const info=port.getInfo();
+    const i = port.getInfo();
 
-    if(
-      info.usbVendorId!==10376||
-      info.usbProductId!==528
-    ){
-      status(
-        'Choose VEX IQ Communications Port.',
-        'error'
+    if (
+      i.usbVendorId !== 10376 ||
+      i.usbProductId !== 528
+    ) {
+      throw Error(
+        'Choose VEX Robotics IQ Controller — Communications Port'
       );
-      port=null;
-      return;
     }
 
     await port.open({baudRate:115200});
 
-    writer=port.writable.getWriter();
-    buffer=[];
-    lastPacketAt=0;
-    active=true;
-    lastError='';
+    writer = port.writable.getWriter();
 
-    status('VEX IQ connected','connected');
+    buffer = [];
+    lastData = 0;
+    running = true;
+    lastError = '';
 
-    disconnectBtn.disabled=false;
+    readJob = readLoop();
+    pollJob = pollLoop();
 
-    readTask=readLoop();
-    pollTask=pollLoop();
+    disconnectBtn.disabled = false;
 
-    switchPanel(false);
+    status('Connected','connected');
+    showPanel(false);
 
-  }catch(e){
-    status('Connection failed: '+e.message,'error');
-
-    if(port)await disconnect();
-  }finally{
-    connecting=false;
-    connectBtn.disabled=active;
-  }
-}
-
-async function disconnect(){
-  if(closing)return;
-
-  closing=true;
-  active=false;
-  releaseAll();
-
-  try{
-    if(reader)await reader.cancel();
-  }catch(e){}
-
-  try{
-    if(readTask)await readTask;
-  }catch(e){}
-
-  readTask=null;
-
-  try{
-    if(pollTask)await pollTask;
-  }catch(e){}
-
-  pollTask=null;
-
-  try{
-    if(writer)writer.releaseLock();
-  }catch(e){}
-
-  writer=null;
-
-  try{
-    if(port)await port.close();
-  }catch(e){}
-
-  port=null;
-  closing=false;
-
-  if(uiReady){
-    connectBtn.disabled=false;
-    disconnectBtn.disabled=true;
-    cursorEl.hidden=true;
+  } catch (e) {
+    lastError = e.message;
 
     status(
-      lastError||'Not connected',
-      lastError?'error':''
+      'Connection failed: ' + e.message,
+      'error'
     );
+
+    if (port) {
+      try {
+        await port.close();
+      } catch {}
+
+      port = null;
+    }
+  } finally {
+    busy = false;
+    connectBtn.disabled = running;
   }
 }
 
-function displayOutput(v){
-  return v==='none'?'Not assigned':
-    v==='mouse-left'?'Left click':
-    v==='mouse-right'?'Right click':
-    v==='Space'?'Space':
-    String(v).replace('Arrow','Arrow ');
+async function disconnect() {
+  if (busy) return;
+
+  busy = true;
+  running = false;
+  release();
+
+  try {
+    if (reader) await reader.cancel();
+  } catch {}
+
+  try {
+    if (readJob) await readJob;
+  } catch {}
+
+  try {
+    if (pollJob) await pollJob;
+  } catch {}
+
+  readJob = pollJob = null;
+
+  try {
+    if (writer) writer.releaseLock();
+  } catch {}
+
+  writer = null;
+
+  try {
+    if (port) await port.close();
+  } catch {}
+
+  port = null;
+  busy = false;
+
+  if (connectBtn) connectBtn.disabled = false;
+  if (disconnectBtn) disconnectBtn.disabled = true;
+  if (cursor) cursor.hidden = true;
+
+  status(
+    lastError
+      ? 'Disconnected — ' + lastError
+      : 'Not connected',
+    lastError ? 'error' : ''
+  );
 }
 
-function stopCapture(){
-  captureName=null;
+function showPanel(v) {
+  panelOpen = v;
+  panel.hidden = !v;
 
-  if(captureBanner)captureBanner.hidden=true;
+  release();
+  learnKey = null;
+  conflict = null;
+  warning.hidden = true;
 
-  Object.values(mapButtons).forEach(b=>{
-    b.classList.remove('listening');
-  });
+  renderRows();
 }
 
-function switchPanel(open){
-  panelOpen=open;
-  dialog.hidden=!open;
+function renderRows() {
+  for (const a of actions) {
+    const row = controls.get(a.key);
+    if (!row) continue;
 
-  pill.setAttribute('aria-expanded',String(open));
+    row.sel.value = assigned[a.key] || 'none';
 
-  if(!open){
-    stopCapture();
-    const focused=shadow.activeElement;
+    row.learn.textContent =
+      learnKey === a.key ? 'Press VEX…' : 'Press VEX';
+  }
 
-    if(focused&&focused.blur)focused.blur();
+  if (hint) {
+    hint.textContent = learnKey
+      ? 'Press the physical VEX button for ' +
+        display(learnKey)
+      : 'Game keys are fixed. Choose a VEX input for each key.';
   }
 }
 
-function updateUI(){
-  Object.keys(mapButtons).forEach(n=>{
-    mapButtons[n].textContent=displayOutput(mapping[n]);
-  });
+function finishAssignment(key,input) {
+  release();
 
-  slider.value=Number(mapping['Mouse speed'])||.30;
-  sliderText.textContent=Number(slider.value).toFixed(2)+'×';
+  assigned[key] = input;
+  learnKey = null;
+  conflict = null;
 
-  shadow.getElementById('vex-aim').textContent=
-    mapping['Right aim']==='mouse-move'
-      ?'Enabled':'Disabled';
-}
+  warning.hidden = true;
 
-function changeMap(name,out){
-  releaseAll();
-  mapping[name]=out;
   save();
-  stopCapture();
-  updateUI();
+  renderRows();
 }
 
-function startCapture(name){
-  releaseAll();
-  stopCapture();
-
-  captureName=name;
-  mapButtons[name].classList.add('listening');
-  captureBanner.hidden=false;
-
-  captureBanner.textContent=
-    'Press a key for '+name+
-    '. Esc cancels. Or choose a mouse action below.';
-}
-
-// Keyboard capture is enabled only during remapping.
-window.addEventListener('keydown',function(e){
-  if(!captureName)return;
-  if(!e.isTrusted)return;
-
-  e.preventDefault();
-  e.stopImmediatePropagation();
-
-  if(e.key==='Escape'){
-    stopCapture();
+function requestAssignment(key,input) {
+  if (input === 'none') {
+    finishAssignment(key,input);
     return;
   }
 
-  if(['Control','Alt','Meta'].includes(e.key))return;
+  const duplicates = actions
+    .filter(a =>
+      a.key !== key &&
+      assigned[a.key] === input
+    )
+    .map(a => a.key);
 
-  let key=e.key===' '?'Space':e.key;
+  if (!duplicates.length) {
+    finishAssignment(key,input);
+    return;
+  }
 
-  changeMap(
-    captureName,
-    key.length===1?key.toLowerCase():key
-  );
-},true);
+  conflict = {key,input,duplicates};
+  learnKey = null;
+  warning.hidden = false;
 
-function buildUI(){
-  host=node('div','','',document.body);
-  host.id='vex-mapper-host';
+  warningText.textContent =
+    input + ' already controls ' +
+    duplicates.map(display).join(', ') +
+    '. Replace the old assignment or keep both actions?';
 
-  shadow=host.attachShadow({mode:'open'});
+  renderRows();
+}
 
-  const style=node('style','',null,shadow);
+function resolveConflict(choice) {
+  if (!conflict) return;
 
-  style.textContent=`
-:host{all:initial;position:fixed;right:18px;bottom:18px;z-index:2147483646;font-family:system-ui,Arial,sans-serif;color:#eff5ff}
-*{box-sizing:border-box}
-button{font:inherit;cursor:pointer}
-[hidden]{display:none!important}
+  const {key,input,duplicates} = conflict;
 
-.pill{display:flex;align-items:center;gap:9px;background:#f7f9fd;color:#13233b;border:1px solid #dce5f2;border-radius:99px;padding:11px 15px;box-shadow:0 8px 30px #0007;font-size:13px;font-weight:700}
-.dot{width:9px;height:9px;border-radius:50%;background:#94a3b8}
-.dot[data-kind=connected]{background:#1fbb79;box-shadow:0 0 0 3px #1fbb7938}
-.dot[data-kind=error]{background:#ee7979}
+  if (choice === 'cancel') {
+    warning.hidden = true;
+    conflict = null;
+    renderRows();
+    return;
+  }
 
-.dialog{position:absolute;right:0;bottom:58px;width:min(390px,calc(100vw - 24px));max-height:min(78vh,750px);overflow-y:auto;background:#132239;border:1px solid #405979;border-radius:17px;padding:17px;box-shadow:0 16px 48px #000b}
+  if (choice === 'replace') {
+    for (const k of duplicates) {
+      assigned[k] = 'none';
+    }
+  }
 
-.header,.line,.section{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.header{align-items:flex-start}
-.title{font-size:19px;font-weight:750}
-.sub{font-size:11px;color:#a7bbd7;margin-top:4px}
-.close{border:0;background:none;color:#b0c4de;font-size:23px}
+  finishAssignment(key,input);
+}
 
-.state{margin:14px 0;padding:11px;background:#1c304c;border-radius:9px;font-size:12px;color:#cce0fa}
-.state[data-kind=connected]{color:#78ecc0}
-.state[data-kind=error]{color:#ffaaaa}
+// Search for game keys in accessible JavaScript source.
+// This cannot inspect all event handlers or infer every action.
 
-.rowButtons{display:flex;gap:8px}
-.primary,.secondary{border:0;border-radius:9px;padding:10px 11px;font-size:12px;font-weight:700}
-.primary{background:#77a3ff;color:#0d1b2d;flex:1}
-.secondary{background:#304561;color:#eff5ff}
-button:disabled{opacity:.45;cursor:default}
+async function findGameKeys() {
+  const found = new Set(['Enter']);
+  const ownScripts = [...document.scripts];
+  const texts = [];
 
-.help{font-size:11px;line-height:1.5;color:#9bafca;margin:11px 0}
-.section{border-top:1px solid #31445e;padding-top:13px;margin-top:14px;font-size:13px;font-weight:700}
+  for (const s of ownScripts) {
+    if (s.src) {
+      const url = new URL(s.src,location.href);
 
-.line{padding:7px 0;border-bottom:1px solid #253952}
-.line span{font-size:12px}
-.map{min-width:115px;max-width:155px;background:#243a57;border:1px solid #526a8b;border-radius:8px;color:#edf5ff;padding:7px;font-size:12px}
-.map.listening{background:#496a98;border-color:#a4d3ff}
-.banner{margin:9px 0;padding:9px;border:1px solid #83b7ff;border-radius:8px;background:#28466a;font-size:12px}
+      if (
+        url.origin !== location.origin ||
+        /vex-controller|VexIQ-Adapter/i.test(url.pathname)
+      ) continue;
 
-.tools{display:flex;gap:7px;margin:12px 0}
-.tool{flex:1;border:1px solid #3d5876;background:#20364f;color:#e1eafa;border-radius:8px;padding:8px 3px;font-size:11px}
+      try {
+        const r = await fetch(
+          url.href,
+          {cache:'no-store'}
+        );
 
-.speed{width:100%;accent-color:#7daaff}
-.speedinfo{font-size:12px;color:#b7cbee}
-.footer{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+        if (r.ok) texts.push(await r.text());
+      } catch {}
 
-@media(max-width:450px){
-  :host{right:10px;bottom:10px}
-}`;
+    } else {
+      texts.push(s.textContent || '');
+    }
+  }
 
-  pill=node('button','pill',null,shadow);
-  pill.type='button';
-  pill.setAttribute('aria-expanded','false');
+  for (const src of texts) {
+    const patterns = [
+      /\b(?:e|event|ev|evt)\s*\.\s*code\s*(?:===|==|!==|!=)\s*['"]([^'"]+)['"]/g,
 
-  dot=node('span','dot',null,pill);
-  node('span','','🎮',pill);
+      /['"]([^'"]+)['"]\s*(?:===|==|!==|!=)\s*\b(?:e|event|ev|evt)\s*\.\s*code\b/g,
 
-  pillText=node(
-    'span','',
-    '+ Add Controller',
-    pill
-  );
+      /\b(?:e|event|ev|evt)\s*\.\s*key\s*(?:===|==|!==|!=)\s*['"]([^'"]+)['"]/g,
 
-  pill.onclick=()=>switchPanel(!panelOpen);
+      /['"]([^'"]+)['"]\s*(?:===|==|!==|!=)\s*\b(?:e|event|ev|evt)\s*\.\s*key\b/g,
 
-  dialog=node('section','dialog',null,shadow);
-  dialog.hidden=true;
+      /\bkeys\s*\[\s*['"]([^'"]+)['"]\s*\]/g,
 
-  const header=node('div','header',null,dialog);
-  const titles=node('div','',null,header);
+      /\bkeys\s*\.\s*([a-zA-Z])\b/g,
 
-  node('div','title','Controller settings',titles);
-  node('div','sub','VEX IQ 2nd Gen · Build '+VERSION,titles);
-
-  const closeBtn=node('button','close','×',header);
-  closeBtn.onclick=()=>switchPanel(false);
-
-  stateEl=node('div','state','Not connected',dialog);
-
-  const buttons=node('div','rowButtons',null,dialog);
-
-  connectBtn=node(
-    'button','primary',
-    'Connect VEX IQ',
-    buttons
-  );
-  connectBtn.onclick=connect;
-
-  disconnectBtn=node(
-    'button','secondary',
-    'Disconnect',
-    buttons
-  );
-  disconnectBtn.disabled=true;
-  disconnectBtn.onclick=disconnect;
-
-  node(
-    'div','help',
-    'Choose the Communications Port. Mappings save automatically for this game.',
-    dialog
-  );
-
-  node('div','section','Button mapping',dialog);
-
-  captureBanner=node(
-    'div','banner',
-    'Press a keyboard key',
-    dialog
-  );
-  captureBanner.hidden=true;
-
-  rowsEl=node('div','',null,dialog);
-
-  Object.keys(defaults)
-    .filter(n=>n!=='Right aim'&&n!=='Mouse speed')
-    .forEach(name=>{
-      const row=node('div','line',null,rowsEl);
-
-      node('span','',name,row);
-
-      const btn=node(
-        'button','map',
-        displayOutput(mapping[name]),
-        row
-      );
-
-      mapButtons[name]=btn;
-      btn.onclick=()=>startCapture(name);
-    });
-
-  const aimRow=node('div','line',null,dialog);
-
-  node('span','','Right stick → mouse aim',aimRow);
-
-  const aimBtn=node('button','map',null,aimRow);
-  aimBtn.id='vex-aim';
-
-  aimBtn.onclick=()=>{
-    releaseAll();
-
-    mapping['Right aim']=
-      mapping['Right aim']==='mouse-move'
-        ?'none':'mouse-move';
-
-    save();
-    updateUI();
-  };
-
-  node(
-    'div','section',
-    'Right joystick sensitivity',
-    dialog
-  );
-
-  const sr=node('div','line',null,dialog);
-
-  node('span','speedinfo','Mouse speed',sr);
-  sliderText=node('b','speedinfo','',sr);
-
-  slider=node('input','speed',null,dialog);
-  slider.type='range';
-  slider.min='0.5';
-  slider.max='3.50';
-  slider.step='0.10';
-  slider.value=String(mapping['Mouse speed']);
-
-  slider.oninput=()=>{
-    mapping['Mouse speed']=Number(slider.value);
-    sliderText.textContent=Number(slider.value).toFixed(2)+'×';
-    save();
-  };
-
-  node(
-    'div','help',
-    'Default: 2.00. Adjust while testing aim in the game.',
-    dialog
-  );
-
-  const tools=node('div','tools',null,dialog);
-
-  const left=node('button','tool','Left click',tools);
-  const right=node('button','tool','Right click',tools);
-  const clear=node('button','tool','Unassign',tools);
-
-  left.onclick=()=>{
-    if(captureName)changeMap(captureName,'mouse-left');
-  };
-
-  right.onclick=()=>{
-    if(captureName)changeMap(captureName,'mouse-right');
-  };
-
-  clear.onclick=()=>{
-    if(captureName)changeMap(captureName,'none');
-  };
-
-  node(
-    'div','help',
-    'For mouse clicks: select a button above, then choose Left click or Right click.',
-    dialog
-  );
-
-  const footer=node('div','footer',null,dialog);
-
-  const reset=node(
-    'button','secondary',
-    'Reset defaults',
-    footer
-  );
-
-  reset.onclick=()=>{
-    releaseAll();
-    mapping={...defaults};
-    save();
-    stopCapture();
-    updateUI();
-  };
-
-  const copy=node(
-    'button','secondary',
-    'Copy diagnostic',
-    footer
-  );
-
-  copy.onclick=async()=>{
-    const info=[
-      'VEX IQ Game Mapper',
-      'Build Version: '+VERSION,
-      'Status: '+(active?'Connected':'Disconnected'),
-      'Packets: '+packets,
-      'Polls: '+polls,
-      'Last age: '+(
-        lastPacketAt
-          ?Date.now()-lastPacketAt+' ms'
-          :'none'
+      ...(
+        /\b(?:const|let|var)\s+k\s*=\s*(?:e|event|ev|evt)\.key\.toLowerCase\(\)/.test(src)
+        ? [
+          /\bk\s*(?:===|==|!==|!=)\s*['"]([^'"]+)['"]/g,
+          /['"]([^'"]+)['"]\s*(?:===|==|!==|!=)\s*\bk\b/g
+        ]
+        : []
       ),
-      'Last error: '+(lastError||'none'),
-      'Mappings: '+JSON.stringify(mapping)
-    ].join('\n');
 
-    try{
-      await navigator.clipboard.writeText(info);
-      copy.textContent='Copied!';
-    }catch(e){
-      copy.textContent='Copy failed';
+      /\b(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\)\s*\{?[^\n]{0,100}['"](Space|Enter|ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Key[A-Z])['"]/g
+    ];
+
+    for (const re of patterns) {
+      for (const m of src.matchAll(re)) {
+        const k = canonical(m[1]);
+
+        if (isGameKey(k)) found.add(k);
+      }
     }
 
-    setTimeout(()=>{
-      copy.textContent='Copy diagnostic';
-    },1400);
+    // Find collections such as:
+    // ['Space','ArrowUp'].includes(e.code)
+
+    const collectionPattern =
+      /(\[[^\]\n]{1,220}\])\s*\.\s*includes\s*\(\s*(?:e|event|ev|evt)\.\s*(?:code|key)\s*\)/g;
+
+    for (const m of src.matchAll(collectionPattern)) {
+      for (
+        const str of m[1].matchAll(
+          /['"]([^'"]+)['"]/g
+        )
+      ) {
+        const k = canonical(str[1]);
+
+        if (isGameKey(k)) found.add(k);
+      }
+    }
+  }
+
+  const sorted = [...found].sort((a,b) => {
+    const priority = [
+      'w','a','s','d',
+      'ArrowUp','ArrowLeft','ArrowDown','ArrowRight',
+      'Space','Enter'
+    ];
+
+    const i = priority.indexOf(a);
+    const j = priority.indexOf(b);
+
+    if (i >= 0 || j >= 0) {
+      return (i < 0 ? 100 : i) -
+             (j < 0 ? 100 : j);
+    }
+
+    return a.localeCompare(b);
+  });
+
+  actions = sorted.map(key => ({key}));
+
+  for (const a of actions) {
+    assigned[a.key] =
+      typeof saved.assigned?.[a.key] === 'string'
+        ? saved.assigned[a.key]
+        : (DEFAULT_ASSIGN[a.key] || 'none');
+
+    if (!INPUTS.includes(assigned[a.key])) {
+      assigned[a.key] = 'none';
+    }
+  }
+
+  if (
+    !saved.assigned ||
+    !Object.hasOwn(saved.assigned,'Enter')
+  ) {
+    assigned.Enter = 'R3';
+  }
+
+  buildRows();
+  renderRows();
+
+  return sorted;
+}
+
+function isGameKey(k) {
+  return (
+    k === 'Space' ||
+    k === 'Enter' ||
+    k === 'Shift' ||
+    k === 'Control' ||
+    /^Arrow(Up|Down|Left|Right)$/.test(k) ||
+    /^[a-z0-9]$/.test(k) ||
+    /^F(?:[1-9]|1[0-2])$/.test(k)
+  );
+}
+
+function buildRows() {
+  rowsEl.textContent = '';
+  controls.clear();
+
+  for (const a of actions) {
+    const row = el('div',rowsEl,'row');
+
+    el(
+      'span',
+      row,
+      'keylabel',
+      display(a.key)
+    );
+
+    const sel = el('select',row,'select');
+
+    for (const inp of ['none',...INPUTS]) {
+      const o = el(
+        'option',
+        sel,
+        '',
+        inp === 'none'
+          ? 'Not assigned'
+          : inp
+      );
+
+      o.value = inp;
+    }
+
+    sel.value = assigned[a.key] || 'none';
+
+    sel.onchange = () => {
+      requestAssignment(a.key,sel.value);
+    };
+
+    const learn = el(
+      'button',
+      row,
+      'learn',
+      'Press VEX'
+    );
+
+    learn.onclick = () => {
+      if (!running) {
+        status(
+          'Connect the controller first',
+          'error'
+        );
+        return;
+      }
+
+      release();
+      learnKey = a.key;
+      warning.hidden = true;
+      renderRows();
+    };
+
+    controls.set(a.key,{sel,learn});
+  }
+}
+
+function buildUI() {
+  host = el('div',document.body);
+  host.id = 'vex-adapter';
+
+  shadow = host.attachShadow({mode:'open'});
+
+  el('style',shadow).textContent = `
+:host{
+  all:initial;
+  position:fixed;
+  right:16px;
+  bottom:16px;
+  z-index:2147483646;
+  font-family:system-ui,Arial,sans-serif;
+  color:#ecf4ff;
+}
+*,*:before,*:after{box-sizing:border-box}
+[hidden]{display:none!important}
+button,select,input{font:inherit}
+button{cursor:pointer}
+.pill{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:#f5f9ff;
+  color:#14253d;
+  border:1px solid #d3deec;
+  border-radius:99px;
+  padding:11px 16px;
+  font-size:13px;
+  font-weight:700;
+  box-shadow:0 9px 30px #0007;
+}
+.dot{
+  height:9px;
+  width:9px;
+  border-radius:50%;
+  background:#9daabd;
+}
+.dot[data-kind=connected]{background:#24ba80}
+.dot[data-kind=error]{background:#ed7777}
+.panel{
+  position:absolute;
+  bottom:58px;
+  right:0;
+  width:min(415px,calc(100vw - 24px));
+  max-height:78vh;
+  overflow-y:auto;
+  border:1px solid #45617f;
+  border-radius:17px;
+  background:#14253d;
+  box-shadow:0 18px 48px #000a;
+  padding:18px;
+}
+.head,.buttons,.foot{
+  display:flex;
+  gap:8px;
+  justify-content:space-between;
+  align-items:center;
+}
+.title{font-size:19px;font-weight:750}
+.small,.help{
+  font-size:11px;
+  color:#b0c6e2;
+  line-height:1.5;
+}
+.close{
+  border:0;
+  background:none;
+  color:#cbd8eb;
+  font-size:23px;
+}
+.status{
+  background:#203954;
+  border-radius:9px;
+  padding:10px;
+  margin:14px 0;
+  font-size:12px;
+}
+.status[data-kind=error]{color:#ffa7a7}
+.status[data-kind=connected]{color:#81edbd}
+.primary,.secondary,.learn,.mini{
+  border:0;
+  border-radius:8px;
+  padding:9px 10px;
+  font-size:12px;
+}
+.primary{
+  flex:1;
+  background:#8ab3ff;
+  color:#112439;
+  font-weight:700;
+}
+.secondary,.learn,.mini{
+  background:#344d6a;
+  color:#e9f4ff;
+}
+.learn{font-size:10px}
+.row{
+  display:grid;
+  grid-template-columns:90px 1fr 83px;
+  align-items:center;
+  gap:7px;
+  padding:7px 0;
+  border-bottom:1px solid #2e4158;
+}
+.keylabel{
+  font-size:12px;
+  font-weight:700;
+  background:#20344e;
+  padding:8px;
+  border-radius:6px;
+  text-align:center;
+}
+.select{
+  width:100%;
+  min-width:0;
+  color:#e9f4ff;
+  background:#253c59;
+  border:1px solid #5a7798;
+  border-radius:7px;
+  padding:8px;
+  font-size:12px;
+}
+.section{
+  border-top:1px solid #3d526e;
+  margin-top:15px;
+  padding-top:13px;
+  font-size:13px;
+  font-weight:700;
+}
+.help{margin:10px 0}
+.warning{
+  border:1px solid #f5bc6b;
+  background:#483827;
+  border-radius:10px;
+  padding:12px;
+  margin:12px 0;
+  font-size:12px;
+  line-height:1.5;
+}
+.warning-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:10px;
+}
+.mini{background:#766144}
+.slider{
+  width:100%;
+  accent-color:#8ebaff;
+  margin:9px 0;
+}
+.foot{
+  margin-top:12px;
+  flex-wrap:wrap;
+}
+button:disabled{
+  opacity:.42;
+  cursor:default;
+}
+`;
+
+  pill = el('button',shadow,'pill');
+  dot = el('span',pill,'dot');
+  el('span',pill,'','🎮');
+
+  pillText = el(
+    'span',
+    pill,
+    '',
+    '+ Add Controller'
+  );
+
+  pill.onclick = () => showPanel(!panelOpen);
+
+  panel = el('section',shadow,'panel');
+  panel.hidden = true;
+
+  const head = el('div',panel,'head');
+  const lhs = el('div',head);
+
+  el(
+    'div',lhs,'title',
+    'Controller settings'
+  );
+
+  el(
+    'div',lhs,'small',
+    'VEX IQ 2nd Gen · ' + VERSION
+  );
+
+  const close = el(
+    'button',head,'close','×'
+  );
+
+  close.onclick = () => showPanel(false);
+
+  statusEl = el(
+    'div',panel,'status',
+    'Not connected'
+  );
+
+  const bar = el('div',panel,'buttons');
+
+  connectBtn = el(
+    'button',bar,'primary',
+    'Connect VEX IQ'
+  );
+
+  connectBtn.onclick = connect;
+
+  disconnectBtn = el(
+    'button',bar,'secondary',
+    'Disconnect'
+  );
+
+  disconnectBtn.disabled = true;
+  disconnectBtn.onclick = disconnect;
+
+  el(
+    'div',
+    panel,
+    'help',
+    'Select VEX Robotics IQ Controller — ' +
+    'Communications Port. ' +
+    'Game keyboard keys stay unchanged.'
+  );
+
+  el(
+    'div',
+    panel,
+    'section',
+    'Detected game keys → VEX inputs'
+  );
+
+  hint = el(
+    'div',
+    panel,
+    'help',
+    'Scanning game controls…'
+  );
+
+  rowsEl = el('div',panel);
+
+  warning = el(
+    'div',
+    panel,
+    'warning'
+  );
+
+  warning.hidden = true;
+
+  warningText = el('div',warning);
+
+  const wButtons = el(
+    'div',warning,'warning-actions'
+  );
+
+  const replace = el(
+    'button',
+    wButtons,
+    'mini',
+    'Replace old'
+  );
+
+  replace.onclick = () =>
+    resolveConflict('replace');
+
+  const both = el(
+    'button',
+    wButtons,
+    'mini',
+    'Keep both'
+  );
+
+  both.onclick = () =>
+    resolveConflict('both');
+
+  const cancel = el(
+    'button',
+    wButtons,
+    'mini',
+    'Cancel'
+  );
+
+  cancel.onclick = () =>
+    resolveConflict('cancel');
+
+  el(
+    'div',
+    panel,
+    'section',
+    'Right joystick mouse sensitivity'
+  );
+
+  const speedLine = el(
+    'div',panel,'buttons'
+  );
+
+  el(
+    'span',
+    speedLine,
+    'small',
+    'Mouse speed'
+  );
+
+  speedText = el(
+    'strong',
+    speedLine,
+    '',
+    speed.toFixed(2) + '×'
+  );
+
+  slider = el('input',panel,'slider');
+  slider.type = 'range';
+  slider.min = '.50';
+  slider.max = '3.50';
+  slider.step = '.10';
+  slider.value = String(speed);
+
+  slider.oninput = () => {
+    speed = +slider.value;
+
+    speedText.textContent =
+      speed.toFixed(2) + '×';
+
+    save();
   };
 
-  cursorEl=node('div','',null,document.body);
-  cursorEl.hidden=true;
+  aimBtn = el(
+    'button',
+    panel,
+    'secondary',
+    'Mouse aiming: ' +
+      (aimEnabled ? 'ON' : 'OFF')
+  );
 
-  cursorEl.style.cssText=
-    'position:fixed;'+
-    'width:17px;height:17px;'+
-    'pointer-events:none;'+
-    'border:2px solid #61ffc2;'+
-    'border-radius:50%;'+
-    'transform:translate(-50%,-50%);'+
-    'z-index:2147483645;'+
-    'box-shadow:0 0 0 2px #091522';
+  aimBtn.onclick = () => {
+    aimEnabled = !aimEnabled;
 
-  uiReady=true;
-  updateUI();
+    aimBtn.textContent =
+      'Mouse aiming: ' +
+      (aimEnabled ? 'ON' : 'OFF');
+
+    if (!aimEnabled) cursor.hidden = true;
+
+    save();
+  };
+
+  el(
+    'div',
+    panel,
+    'help',
+    'Auto-detection is best effort. ' +
+    'Unrecognized game controls may not appear. ' +
+    'R3 defaults to Enter.'
+  );
+
+  const foot = el('div',panel,'foot');
+
+  const reset = el(
+    'button',
+    foot,
+    'secondary',
+    'Reset defaults'
+  );
+
+  reset.onclick = () => {
+    release();
+
+    for (const a of actions) {
+      assigned[a.key] =
+        DEFAULT_ASSIGN[a.key] || 'none';
+    }
+
+    assigned.Enter = 'R3';
+
+    save();
+    renderRows();
+  };
+
+  const copy = el(
+    'button',
+    foot,
+    'secondary',
+    'Copy diagnostic'
+  );
+
+  copy.onclick = async () => {
+    const t = [
+      'VEX IQ Game Adapter',
+      'Build Version: ' + VERSION,
+      'Status: ' +
+        (running ? 'Connected' : 'Disconnected'),
+      'Packets: ' + packets,
+      'Polls: ' + polls,
+      'Last packet age: ' +
+        (lastData
+          ? Date.now() - lastData + 'ms'
+          : 'none'),
+      'Detected keys: ' +
+        actions.map(a => a.key).join(', '),
+      'Mappings: ' + JSON.stringify(assigned),
+      'Mouse speed: ' + speed,
+      'Error: ' + lastError
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(t);
+      copy.textContent = 'Copied';
+    } catch {
+      copy.textContent = 'Copy failed';
+    }
+
+    setTimeout(() => {
+      copy.textContent = 'Copy diagnostic';
+    },1200);
+  };
+
+  cursor = el('div',document.body);
+  cursor.hidden = true;
+
+  cursor.style.cssText =
+    'position:fixed;' +
+    'width:16px;' +
+    'height:16px;' +
+    'border:2px solid #7affc9;' +
+    'border-radius:50%;' +
+    'transform:translate(-50%,-50%);' +
+    'pointer-events:none;' +
+    'z-index:2147483645;' +
+    'box-shadow:0 0 0 2px #102034';
+
   status('Not connected');
 
-  setInterval(()=>{
-    if(!active)return;
+  findGameKeys().catch(e => {
+    hint.textContent =
+      'Could not scan the game: ' + e.message;
 
-    if(
-      lastPacketAt &&
-      Date.now()-lastPacketAt>1800
-    ){
+    actions = [{key:'Enter'}];
+    assigned.Enter = 'R3';
+
+    buildRows();
+  });
+
+  setInterval(() => {
+    if (
+      running &&
+      lastData &&
+      Date.now() - lastData > 1800
+    ) {
+      release();
+
       status(
-        'Connected, but no recent data',
+        'No recent controller data',
         'error'
       );
-      releaseAll();
-    }else{
-      status('VEX IQ connected','connected');
+    } else if (running) {
+      status('Connected','connected');
     }
   },400);
 }
 
-window.addEventListener('blur',()=>{
-  releaseAll();
-  nativeHeld.clear();
+window.addEventListener('blur',() => {
+  release();
+  nativeKeys.clear();
 });
 
-window.addEventListener('beforeunload',()=>{
-  active=false;
-  releaseAll();
+window.addEventListener('beforeunload',() => {
+  running = false;
+  release();
 });
 
-window.VEXMapper={
+window.VEXMapper = {
   version:VERSION,
   connect,
   disconnect
 };
 
-if(document.readyState==='loading'){
+if (document.readyState === 'loading') {
   document.addEventListener(
     'DOMContentLoaded',
     buildUI,
     {once:true}
   );
-}else{
+} else {
   buildUI();
 }
 })();
