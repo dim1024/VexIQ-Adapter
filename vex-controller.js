@@ -216,11 +216,23 @@
     setStatus(lastError?'Disconnected — '+lastError:'Not connected',lastError?'error':'');
     updateFields();
   }
+
   function showPanel(open) {
-    panelOpen=open;panel.hidden=!open;
-    pill.setAttribute('aria-expanded',String(open));
-    learning=null;conflict=null;messageBox.hidden=true;releaseAll();updateFields();
+    panelOpen = open;
+    panel.hidden = !open;
+  
+    pill.classList.toggle('compact', !open);
+  
+    pill.setAttribute('aria-expanded', String(open));
+  
+    learning = null;
+    conflict = null;
+    messageBox.hidden = true;
+  
+    releaseAll();
+    updateFields();
   }
+
   function updateFields() {
     for(const key of keys) {
       const field=fields.get(key);
@@ -351,10 +363,35 @@
 .key{font-size:13px;text-align:center;padding:8px;border-radius:8px;background:#203751;font-weight:750}.field{background:#273f60;color:#f4f8ff;border:1px solid #527295;border-radius:9px;padding:9px;font-size:12px;text-align:center;min-height:36px}.field.listening{background:#3e6594;border-color:#a5d1ff;box-shadow:0 0 0 2px #86baff45}
 .warning{background:#493724;border:1px solid #f6b66b;border-radius:10px;padding:12px;margin:11px 0;font-size:12px;line-height:1.45}.warningButtons{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.small{background:#6c593b}
 .speed{width:100%;accent-color:#8abaff;margin:11px 0}.foot{margin-top:14px;flex-wrap:wrap}button:disabled{opacity:.45;cursor:default}
+.pill {
+    transition: opacity .2s, padding .2s;
+  }
+  
+  .pill.compact {
+    padding: 10px;
+    opacity: .4;
+  }
+  
+  .pill.compact .pill-label {
+    display: none;
+  }
+  
+  .pill.compact:hover,
+  .pill.compact:focus-visible {
+    padding: 11px 15px;
+    opacity: 1;
+  }
+  
+  .pill.compact:hover .pill-label,
+  .pill.compact:focus-visible .pill-label {
+    display: inline;
+  }
+
 `;
     pill=make('button',shadow,'pill');pill.type='button';
     light=make('span',pill,'light');make('span',pill,'','🎮');
-    pillText=make('span',pill,'','+ Add Controller');
+    pillText=make('span',pill,'pill-label','+ Add Controller');
+    pill.classList.add('compact');
     pill.onclick=()=>showPanel(!panelOpen);
     panel=make('section',shadow,'panel');panel.hidden=true;
     const head=make('div',panel,'head');const heading=make('div',head);
