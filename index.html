@@ -4,10 +4,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-
 <title>VEX IQ Controller USB Test</title>
 
-<meta name="build" content="2026-11-16.4">
+<meta name="build" content="2026-11-17.1">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -21,11 +20,11 @@
     var meta = document.querySelector('meta[name="build"]');
     if (!meta || !window.fetch) return;
 
-    var localBuild = meta.getAttribute("content");
-    var cleanURL = location.href.split("#")[0].split("?")[0];
-    var guardKey = "vex-build-reload:" + cleanURL;
+    var local = meta.getAttribute("content");
+    var clean = location.href.split("#")[0].split("?")[0];
+    var key = "vex-reload:" + clean;
 
-    fetch(cleanURL + "?_v=" + Date.now(), {
+    fetch(clean + "?_v=" + Date.now(), {
       cache: "no-store"
     })
     .then(function (response) {
@@ -35,200 +34,156 @@
     .then(function (html) {
       if (!html) return;
 
-      var match = /<meta\s+name=["']build["']\s+content=["']([^"']+)["']/i.exec(html);
+      var match = /<meta[^>]*name=["']build["'][^>]*content=["']([^"']+)["']/i.exec(html);
 
-      if (!match) return;
-
-      var remoteBuild = match[1];
-
-      if (remoteBuild === localBuild) return;
+      if (!match || match[1] === local) return;
 
       try {
-        if (sessionStorage.getItem(guardKey) === remoteBuild) {
-          return;
-        }
-
-        sessionStorage.setItem(guardKey, remoteBuild);
+        if (sessionStorage.getItem(key) === match[1]) return;
+        sessionStorage.setItem(key, match[1]);
       } catch (e) {
         return;
       }
 
-      location.replace(cleanURL + "?_v=" + Date.now());
+      location.replace(clean + "?_v=" + Date.now());
     })
     .catch(function () {});
-
   } catch (e) {}
 }());
 </script>
 
 <style>
-* {
-  box-sizing: border-box;
-}
+* {box-sizing:border-box}
 
 body {
-  margin: 0;
-  background: #101827;
-  color: #f0f5ff;
-  font-family: Arial, sans-serif;
+  margin:0;
+  background:#101827;
+  color:#edf3ff;
+  font-family:Arial,sans-serif;
 }
 
 main {
-  max-width: 850px;
-  margin: 30px auto;
-  padding: 15px;
+  max-width:850px;
+  margin:25px auto;
+  padding:15px;
 }
 
-h1 {
-  margin-bottom: 8px;
-}
+h1 {margin-bottom:8px}
 
 p {
-  color: #b9c6dd;
-  line-height: 1.6;
+  color:#b9c6dd;
+  line-height:1.6;
 }
 
 .panel {
-  background: #1d2a40;
-  padding: 22px;
-  border-radius: 15px;
-  margin: 16px 0;
-  border: 1px solid #35445f;
+  background:#1d2a40;
+  border:1px solid #35445f;
+  border-radius:15px;
+  padding:20px;
+  margin:16px 0;
 }
 
 button {
-  border: none;
-  background: #417df3;
-  color: white;
-  font-size: 16px;
-  padding: 13px 17px;
-  border-radius: 9px;
-  cursor: pointer;
-  margin: 4px;
+  background:#417df3;
+  color:white;
+  border:0;
+  border-radius:9px;
+  padding:12px 16px;
+  margin:4px;
+  font-size:15px;
+  cursor:pointer;
 }
 
 button:disabled {
-  opacity: 0.45;
-  cursor: default;
+  opacity:.4;
+  cursor:default;
 }
 
-#status {
-  font-weight: bold;
-  color: #ffcb78;
+button.green {background:#187b60}
+button.red {background:#a83d49}
+
+input {
+  background:#101827;
+  border:1px solid #536580;
+  color:white;
+  padding:12px;
+  border-radius:8px;
+  font-size:15px;
+  width:100%;
+  margin:8px 0;
 }
 
 .version {
-  display: inline-block;
-  background: #263a57;
-  color: #7de6ba;
-  padding: 7px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: bold;
-  margin: 8px 0;
-}
-
-.axes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 15px;
-}
-
-.axis {
-  padding: 15px;
-  border-radius: 12px;
-  background: #101b2d;
-}
-
-.axis label {
-  display: block;
-  margin-bottom: 12px;
-  font-weight: bold;
-}
-
-.track {
-  height: 18px;
-  border-radius: 20px;
-  background: #35445e;
-  position: relative;
-}
-
-.marker {
-  width: 14px;
-  height: 26px;
-  background: #56e8ae;
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  border-radius: 7px;
-  transform: translateX(-50%);
-}
-
-.value {
-  margin-top: 12px;
-  font-size: 22px;
-  font-weight: bold;
-  text-align: center;
-}
-
-.bytes {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  gap: 8px;
-}
-
-.byte {
-  border-radius: 9px;
-  padding: 10px 5px;
-  background: #101b2d;
-  text-align: center;
-  border: 1px solid #334561;
-}
-
-.byte.changed {
-  background: #225d4a;
-  border-color: #55d9a6;
-}
-
-.byte small {
-  display: block;
-  color: #9aacca;
-  font-size: 12px;
-}
-
-.byte strong {
-  display: block;
-  font-size: 21px;
-  margin-top: 5px;
-}
-
-pre {
-  background: #0c1422;
-  color: #b5f5d6;
-  padding: 15px;
-  border-radius: 10px;
-  max-height: 280px;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 12px;
+  color:#70e6b6;
+  font-weight:bold;
+  font-size:14px;
 }
 
 .stats {
-  display: flex;
-  gap: 25px;
-  flex-wrap: wrap;
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  text-align:center;
+  margin-top:18px;
 }
 
-.stats b {
-  color: #60e1ae;
-  font-size: 22px;
+.stat {
+  background:#101b2d;
+  padding:13px 5px;
+  border-radius:10px;
 }
 
-@media (max-width: 500px) {
-  .axes {
-    grid-template-columns: 1fr;
-  }
+.stat strong {
+  display:block;
+  color:#70e6b6;
+  font-size:25px;
+  margin-top:8px;
+}
+
+#status {font-weight:bold;color:#ffcb78}
+
+#phase {
+  padding:14px;
+  background:#10243c;
+  border-radius:10px;
+  font-weight:bold;
+  margin:12px 0;
+}
+
+pre {
+  background:#0b1321;
+  color:#d8f6e7;
+  padding:15px;
+  border-radius:10px;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  max-height:400px;
+  overflow:auto;
+  font-size:13px;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+
+td,th {
+  border-bottom:1px solid #35445f;
+  padding:8px;
+  text-align:center;
+}
+
+.changed {color:#64ebaa;font-weight:bold}
+
+.note {
+  font-size:13px;
+  color:#aebed8;
+}
+
+@media(max-width:500px) {
+  .stats {gap:5px}
+  .stat strong {font-size:19px}
 }
 </style>
 </head>
@@ -238,86 +193,96 @@ pre {
 
 <h1>🎮 VEX IQ Controller USB Test</h1>
 
-<div class="version" id="versionLabel">
-  Build 2026-11-16.4
-</div>
+<div class="version" id="version"></div>
 
 <p>
 VEX IQ 2nd Generation · USB-C · No Robot Brain
 </p>
 
 <div class="panel">
+  <h2>1. Connection</h2>
 
   <button id="connect">Connect Controller</button>
   <button id="disconnect" disabled>Disconnect</button>
 
   <p id="status">Not connected</p>
 
-  <p>
-    Choose <b>VEX Robotics IQ Controller —
-    Communications Port</b>.
-  </p>
-
-  <p>
-    This test sends the polling command observed
-    in the working simulator.
-    It does not update firmware.
+  <p class="note">
+    Select VEX Robotics IQ Controller —
+    Communications Port (COM4 on your PC).
+    Close the simulator before connecting.
   </p>
 
   <div class="stats">
-    <div>
-      Packets<br>
-      <b id="packets">0</b>
+    <div class="stat">
+      Packets
+      <strong id="packets">0</strong>
     </div>
-
-    <div>
-      Bytes<br>
-      <b id="bytes">0</b>
+    <div class="stat">
+      Bytes
+      <strong id="bytes">0</strong>
     </div>
-
-    <div>
-      Changes<br>
-      <b id="changes">0</b>
+    <div class="stat">
+      Polls sent
+      <strong id="polls">0</strong>
     </div>
   </div>
-
 </div>
 
 <div class="panel">
-
-  <h2>Joystick Test</h2>
+  <h2>2. Controlled Test</h2>
 
   <p>
-    Move both joysticks. The four values below
-    are candidate analog axes from the received packets.
+    First record the controller without touching it.
+    Then record one specific joystick movement or button.
   </p>
 
-  <div class="axes" id="axes"></div>
-
-</div>
-
-<div class="panel">
-
-  <h2>Live Controller Bytes</h2>
+  <button id="baseline" class="green" disabled>
+    Record IDLE (4 seconds)
+  </button>
 
   <p>
-    Press controller buttons one at a time.
-    Changed byte values are highlighted green.
+    Name the action you will test:
   </p>
 
-  <div class="bytes" id="byteGrid"></div>
+  <input id="actionName"
+    value="Left joystick LEFT"
+    placeholder="Example: Button E">
 
+  <button id="action" class="green" disabled>
+    Record ACTION (4 seconds)
+  </button>
+
+  <div id="phase">Waiting for connection</div>
+
+  <p class="note">
+    During ACTION recording, hold the selected button
+    or joystick direction for the whole four seconds.
+    Do not move other controls.
+  </p>
 </div>
 
 <div class="panel">
+  <h2>3. Byte Comparison</h2>
 
-  <h2>Diagnostic Log</h2>
+  <p>
+    Shows which bytes changed their observed range
+    between IDLE and ACTION. This is diagnostic data,
+    not a confirmed button mapping.
+  </p>
 
-  <button id="clear">Clear Log</button>
+  <div id="comparison">
+    Record IDLE and ACTION to see results.
+  </div>
+</div>
+
+<div class="panel">
+  <h2>4. Diagnostic</h2>
+
   <button id="copy">Copy Diagnostic</button>
+  <button id="reset">Reset Results</button>
 
-  <pre id="log">Waiting for controller...</pre>
-
+  <pre id="log">No diagnostic data yet.</pre>
 </div>
 
 </main>
@@ -331,414 +296,491 @@ const BUILD = document.querySelector(
   'meta[name="build"]'
 ).getAttribute("content");
 
-$("versionLabel").textContent = "Build " + BUILD;
+$("version").textContent = "BUILD VERSION: " + BUILD;
 
 let port = null;
 let reader = null;
 let writer = null;
+
 let running = false;
+let connecting = false;
+let stopping = false;
+
+let readTask = null;
+let pollTask = null;
+
+let packets = 0;
+let bytes = 0;
+let polls = 0;
 
 let rxBuffer = [];
-let totalBytes = 0;
-let packetCount = 0;
-let changeCount = 0;
-
-let previousPacket = null;
 let lastPacket = null;
 
+let phase = "";
+let samples = [];
+let idleSamples = null;
+let actionSamples = null;
+let testedAction = "";
+
+let phaseTimer = null;
 let logLines = [];
 
 const POLL = new Uint8Array([
-  0xc9, 0x36, 0xb8, 0x47,
-  0x58, 0x60, 0x00, 0x10, 0x53
+  0xc9,0x36,0xb8,0x47,
+  0x58,0x60,0x00,0x10,0x53
 ]);
+
+function hex(data) {
+  return Array.from(data)
+    .map(x=>x.toString(16).padStart(2,"0"))
+    .join(" ");
+}
 
 function log(message) {
   logLines.push(message);
 
-  if (logLines.length > 100) {
-    logLines.shift();
-  }
+  if(logLines.length>120) logLines.shift();
 
-  $("log").textContent = logLines.join("\n");
+  $("log").textContent=logLines.join("\n");
+
+  console.log("[VEX "+BUILD+"] "+message);
 }
 
-function setStatus(message, color) {
-  $("status").textContent = message;
-  $("status").style.color = color || "#ffcb78";
-}
-
-function hex(data) {
-  return Array.from(data)
-    .map(n => n.toString(16).padStart(2, "0"))
-    .join(" ");
+function status(message,color) {
+  $("status").textContent=message;
+  $("status").style.color=color||"#ffcb78";
 }
 
 function updateStats() {
-  $("packets").textContent = packetCount;
-  $("bytes").textContent = totalBytes;
-  $("changes").textContent = changeCount;
+  $("packets").textContent=packets;
+  $("bytes").textContent=bytes;
+  $("polls").textContent=polls;
 }
 
-// Create joystick axis indicators.
-for (let i = 0; i < 4; i++) {
-  $("axes").insertAdjacentHTML("beforeend", `
-    <div class="axis">
-      <label>Candidate Axis ${i + 1}</label>
+function controls() {
+  $("connect").disabled=
+    running||connecting||stopping;
 
-      <div class="track">
-        <div class="marker" id="marker${i}"></div>
-      </div>
+  $("disconnect").disabled=
+    !running||stopping;
 
-      <div class="value" id="axis${i}">127</div>
-    </div>
-  `);
+  $("baseline").disabled=
+    !running||!!phase||stopping;
+
+  $("action").disabled=
+    !running||!!phase||!idleSamples||stopping;
 }
 
-// Create byte indicators.
-for (let i = 0; i < 23; i++) {
-  $("byteGrid").insertAdjacentHTML("beforeend", `
-    <div class="byte" id="byte${i}">
-      <small>Byte ${i}</small>
-      <strong id="byteValue${i}">--</strong>
-    </div>
-  `);
+function summarize(list) {
+  if(!list||!list.length) return null;
+
+  const result=[];
+
+  for(let i=0;i<23;i++) {
+    const values=list.map(p=>p[i]);
+    const min=Math.min(...values);
+    const max=Math.max(...values);
+    const unique=new Set(values).size;
+
+    result.push({min,max,unique});
+  }
+
+  return result;
 }
 
-function displayPacket(packet) {
+function buildComparison() {
+  const idle=summarize(idleSamples);
+  const action=summarize(actionSamples);
 
-  for (let i = 0; i < 23; i++) {
-
-    const value = packet[i];
-
-    const changed =
-      previousPacket &&
-      previousPacket[i] !== value;
-
-    $("byteValue" + i).textContent =
-      value.toString(16).padStart(2, "0");
-
-    $("byte" + i).classList.toggle(
-      "changed",
-      !!changed
-    );
+  if(!idle||!action) {
+    return "Both recordings are required.";
   }
 
-  // Candidate joystick axes, byte positions 5-8.
-  for (let i = 0; i < 4; i++) {
+  let html=`
+  <p>
+    IDLE: ${idleSamples.length} packets<br>
+    ACTION (${testedAction}): ${actionSamples.length} packets
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>Byte</th>
+        <th>IDLE min-max</th>
+        <th>ACTION min-max</th>
+      </tr>
+    </thead>
+    <tbody>`;
 
-    const value = packet[5 + i];
+  for(let i=0;i<23;i++) {
+    const a=idle[i];
+    const b=action[i];
 
-    const percent = Math.max(
-      0,
-      Math.min(100, value / 255 * 100)
-    );
+    const changed=
+      a.min!==b.min||a.max!==b.max;
 
-    $("axis" + i).textContent = value;
-
-    $("marker" + i).style.left = percent + "%";
+    html+=`
+      <tr>
+        <td>${i}</td>
+        <td>${a.min}-${a.max}</td>
+        <td class="${changed?'changed':''}">
+          ${b.min}-${b.max}
+        </td>
+      </tr>`;
   }
 
-  if (previousPacket) {
+  html+="</tbody></table>";
 
-    const changedPositions = [];
+  html+=`
+    <p class="note">
+      Green means the recorded range differs.
+      Byte 9 may contain changing service data.
+      Bytes 21-22 may be packet checksums.
+      A green value alone does not prove
+      a button was pressed.
+    </p>`;
 
-    for (let i = 0; i < 23; i++) {
-
-      if (packet[i] !== previousPacket[i]) {
-
-        changedPositions.push(
-          i + ":" +
-          previousPacket[i].toString(16).padStart(2, "0") +
-          "→" +
-          packet[i].toString(16).padStart(2, "0")
-        );
-      }
-    }
-
-    if (changedPositions.length) {
-
-      changeCount++;
-
-      if (changeCount <= 80) {
-        log(
-          "CHANGE " + changeCount +
-          " | " + changedPositions.join(" ")
-        );
-      }
-    }
-  }
-
-  previousPacket = packet.slice();
-  lastPacket = packet.slice();
-
-  if (packetCount === 1) {
-    log("FIRST PACKET: " + hex(packet));
-  }
-
-  updateStats();
+  return html;
 }
 
-function processIncoming(data) {
+function finishPhase() {
+  const finished=phase;
+  phase="";
 
-  totalBytes += data.length;
+  if(finished==="idle") {
+    idleSamples=samples.slice();
 
-  for (const byte of data) {
-    rxBuffer.push(byte);
+    log("IDLE completed: "+
+        idleSamples.length+" packets");
+
+    $("phase").textContent=
+      "IDLE saved. Now record ACTION.";
+
+  } else if(finished==="action") {
+    actionSamples=samples.slice();
+
+    log("ACTION completed: "+
+        testedAction+" — "+
+        actionSamples.length+" packets");
+
+    $("phase").textContent=
+      "ACTION saved. Copy Diagnostic.";
+
+    $("comparison").innerHTML=buildComparison();
   }
 
-  if (rxBuffer.length > 4096) {
-    rxBuffer = rxBuffer.slice(-2048);
+  samples=[];
+  phaseTimer=null;
+  controls();
+}
+
+function startPhase(type) {
+  if(!running||phase) return;
+
+  phase=type;
+  samples=[];
+
+  if(type==="idle") {
+    idleSamples=null;
+    actionSamples=null;
+    $("comparison").textContent=
+      "Recording new baseline.";
+
+    log("Starting IDLE recording");
+
+    $("phase").textContent=
+      "RECORDING IDLE — do not touch controller";
+
+  } else {
+    testedAction=$("actionName").value.trim()||
+      "Unnamed action";
+
+    actionSamples=null;
+
+    log("Starting ACTION: "+testedAction);
+
+    $("phase").textContent=
+      "RECORDING ACTION — hold: "+testedAction;
   }
 
-  while (rxBuffer.length >= 4) {
+  controls();
 
-    if (
-      rxBuffer[0] !== 0xaa ||
-      rxBuffer[1] !== 0x55
-    ) {
+  phaseTimer=setTimeout(finishPhase,4000);
+}
+
+$("baseline").onclick=()=>startPhase("idle");
+$("action").onclick=()=>startPhase("action");
+
+function parse(data) {
+  bytes+=data.length;
+
+  for(const b of data) rxBuffer.push(b);
+
+  if(rxBuffer.length>4096) {
+    rxBuffer=rxBuffer.slice(-2048);
+    log("Receive buffer truncated");
+  }
+
+  while(rxBuffer.length>=4) {
+
+    if(rxBuffer[0]!==0xaa||
+       rxBuffer[1]!==0x55||
+       rxBuffer[2]!==0x58||
+       rxBuffer[3]!==0x13) {
       rxBuffer.shift();
       continue;
     }
 
-    if (
-      rxBuffer[2] !== 0x58 ||
-      rxBuffer[3] !== 0x13
-    ) {
-      rxBuffer.shift();
-      continue;
+    if(rxBuffer.length<23) break;
+
+    const p=rxBuffer.splice(0,23);
+
+    packets++;
+    lastPacket=p;
+
+    if(phase) {
+      samples.push(p.slice());
     }
-
-    const size = 23;
-
-    if (rxBuffer.length < size) {
-      break;
-    }
-
-    const packet = rxBuffer.splice(0, size);
-
-    packetCount++;
-
-    displayPacket(packet);
   }
 
   updateStats();
 }
 
 async function readLoop() {
-
   try {
+    reader=port.readable.getReader();
 
-    reader = port.readable.getReader();
+    while(running) {
+      const result=await reader.read();
 
-    while (running) {
+      if(result.done) break;
 
-      const result = await reader.read();
-
-      if (result.done) {
-        break;
-      }
-
-      if (result.value) {
-        processIncoming(result.value);
-      }
+      if(result.value) parse(result.value);
     }
-
-  } catch (e) {
-
-    if (running) {
-      log("Read error: " + e.message);
-      setStatus("Read error", "#ff8585");
+  } catch(e) {
+    if(running) {
+      log("READ ERROR: "+e.message);
+      status("Read error","#ff8585");
+      running=false;
     }
-
   } finally {
-
-    if (reader) {
+    if(reader) {
       reader.releaseLock();
-      reader = null;
+      reader=null;
     }
   }
 }
 
-async function sendPoll() {
-
-  if (!running || !writer) return;
-
-  try {
-    await writer.write(POLL);
-  } catch (e) {
-    log("Write error: " + e.message);
-    setStatus("Write error", "#ff8585");
-    running = false;
-  }
+function delay(ms) {
+  return new Promise(resolve=>setTimeout(resolve,ms));
 }
 
 async function pollLoop() {
+  try {
+    while(running) {
+      await writer.write(POLL);
+      polls++;
+      updateStats();
 
-  while (running) {
-
-    await sendPoll();
-
-    if (!running) break;
-
-    await new Promise(resolve => {
-      setTimeout(resolve, 100);
-    });
+      await delay(200);
+    }
+  } catch(e) {
+    if(running) {
+      log("WRITE ERROR: "+e.message);
+      status("Write error","#ff8585");
+      running=false;
+    }
   }
 }
 
-$("connect").onclick = async function () {
+async function disconnect() {
+  if(stopping) return;
+  stopping=true;
+  running=false;
+  controls();
 
-  if (!("serial" in navigator)) {
+  if(phaseTimer!==null) {
+    clearTimeout(phaseTimer);
+    phaseTimer=null;
+    log("Recording interrupted");
+  }
 
-    setStatus(
-      "Web Serial not supported. Use Chrome or Edge on HTTPS.",
-      "#ff8585"
-    );
+  phase="";
+  samples=[];
 
+  if(reader) {
+    try {
+      await reader.cancel();
+    } catch(e) {
+      log("Cancel error: "+e.message);
+    }
+  }
+
+  if(readTask) {
+    try {await readTask;} catch(e) {}
+    readTask=null;
+  }
+
+  if(pollTask) {
+    try {await pollTask;} catch(e) {}
+    pollTask=null;
+  }
+
+  if(writer) {
+    try {writer.releaseLock();} catch(e) {}
+    writer=null;
+  }
+
+  if(port) {
+    try {
+      await port.close();
+    } catch(e) {
+      log("Close error: "+e.message);
+    }
+    port=null;
+  }
+
+  stopping=false;
+
+  status("Disconnected");
+  $("phase").textContent=
+    "Disconnected. Reconnect to continue.";
+
+  controls();
+}
+
+$("connect").onclick=async function() {
+  if(!("serial" in navigator)) {
+    status("Web Serial unavailable. Use Chrome/Edge on HTTPS.");
     return;
   }
 
-  $("connect").disabled = true;
+  connecting=true;
+  controls();
 
   try {
+    port=await navigator.serial.requestPort();
 
-    port = await navigator.serial.requestPort();
+    const info=port.getInfo();
+    log("BUILD: "+BUILD);
+    log("USB: "+JSON.stringify(info));
 
-    const info = port.getInfo();
+    await port.open({baudRate:115200});
 
-    log("USB device: " + JSON.stringify(info));
+    writer=port.writable.getWriter();
 
-    await port.open({
-      baudRate: 115200
-    });
+    running=true;
+    status("Connected — polling","#70e6b6");
 
-    writer = port.writable.getWriter();
+    $("phase").textContent=
+      "Connected. Start with IDLE recording.";
 
-    running = true;
+    log("Polling command: "+hex(POLL));
 
-    $("disconnect").disabled = false;
+    readTask=readLoop();
+    pollTask=pollLoop();
 
-    setStatus(
-      "Connected — polling controller",
-      "#62e7ac"
-    );
+  } catch(e) {
+    log("CONNECT ERROR: "+e.message);
+    status("Connection failed: "+e.message,"#ff8585");
 
-    log("Build Version: " + BUILD);
-    log("TX polling command: " + hex(POLL));
+    running=false;
 
-    readLoop();
-    pollLoop();
-
-  } catch (e) {
-
-    log("Connect error: " + e.message);
-
-    setStatus(
-      "Connection failed: " + e.message,
-      "#ff8585"
-    );
-
-    $("connect").disabled = false;
-  }
-};
-
-$("disconnect").onclick = async function () {
-
-  running = false;
-
-  setStatus("Disconnecting...");
-
-  if (reader) {
-    try {
-      await reader.cancel();
-    } catch (e) {}
-  }
-
-  await new Promise(resolve => setTimeout(resolve, 150));
-
-  if (writer) {
-    try {
-      writer.releaseLock();
-    } catch (e) {}
-
-    writer = null;
-  }
-
-  if (port) {
-    try {
-      await port.close();
-    } catch (e) {
-      log("Close error: " + e.message);
+    if(port) {
+      try {await port.close();} catch(x) {}
+      port=null;
     }
-
-    port = null;
+  } finally {
+    connecting=false;
+    controls();
   }
-
-  $("connect").disabled = false;
-  $("disconnect").disabled = true;
-
-  setStatus("Disconnected");
-
-  log("Disconnected");
 };
 
-$("clear").onclick = function () {
+$("disconnect").onclick=disconnect;
 
-  logLines = [];
-  changeCount = 0;
+$("reset").onclick=function() {
+  if(phaseTimer!==null) clearTimeout(phaseTimer);
 
-  $("log").textContent = "Log cleared";
+  phaseTimer=null;
+  phase="";
+  samples=[];
+  idleSamples=null;
+  actionSamples=null;
+  testedAction="";
+
+  packets=0;
+  bytes=0;
+  polls=0;
+  lastPacket=null;
+
+  logLines=[];
+  rxBuffer=[];
+
+  $("log").textContent="Results reset";
+  $("comparison").textContent="Record IDLE and ACTION.";
+  $("phase").textContent="Ready for a new test.";
 
   updateStats();
+  controls();
 };
 
-$("copy").onclick = async function () {
+function sampleReport(name,list) {
+  if(!list||!list.length) {
+    return name+": no samples";
+  }
 
-  const diagnostic = [
+  const summary=summarize(list);
 
+  const lines=[
+    name+": "+list.length+" packets"
+  ];
+
+  for(let i=0;i<23;i++) {
+    lines.push(
+      "Byte "+i+": "+
+      summary[i].min+"-"+summary[i].max+
+      " (unique "+summary[i].unique+")"
+    );
+  }
+
+  return lines.join("\n");
+}
+
+$("copy").onclick=async function() {
+  const report=[
     "VEX IQ Controller USB Test",
-
-    "Build Version: " + BUILD,
-
-    "Browser: " + navigator.userAgent,
-
-    "Status: " + $("status").textContent,
-
-    "Packets: " + packetCount,
-
-    "Bytes: " + totalBytes,
-
-    "Changes: " + changeCount,
-
-    "Last packet: " +
-      (lastPacket ? hex(lastPacket) : "none"),
-
+    "Build Version: "+BUILD,
+    "Browser: "+navigator.userAgent,
+    "Status: "+$("status").textContent,
+    "Packets: "+packets,
+    "Bytes: "+bytes,
+    "Polls sent: "+polls,
+    "Tested action: "+(testedAction||"none"),
+    "Last packet: "+(lastPacket?hex(lastPacket):"none"),
     "",
-
+    sampleReport("IDLE",idleSamples),
+    "",
+    sampleReport("ACTION",actionSamples),
+    "",
+    "LOG:",
     ...logLines
-
   ].join("\n");
 
   try {
+    await navigator.clipboard.writeText(report);
 
-    await navigator.clipboard.writeText(diagnostic);
+    $("copy").textContent="Copied!";
 
-    $("copy").textContent = "Copied!";
-
-    setTimeout(() => {
-      $("copy").textContent = "Copy Diagnostic";
-    }, 1500);
-
-  } catch (e) {
-    log("Copy failed: " + e.message);
+    setTimeout(()=>{
+      $("copy").textContent="Copy Diagnostic";
+    },1500);
+  } catch(e) {
+    log("COPY ERROR: "+e.message);
   }
 };
 
-window.addEventListener("beforeunload", () => {
-  running = false;
+window.addEventListener("beforeunload",()=>{
+  running=false;
 });
 </script>
-
 </body>
 </html>
