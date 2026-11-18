@@ -1,11 +1,11 @@
 
-/* VEX_BUILD: 2026-11-17.12 */
+/* VEX_BUILD: 2026-11-18.13 */
 /* VEX IQ 2nd Gen browser adapter — no Robot Brain */
 (() => {
   'use strict';
   if (window.VEXMapper) return;
 
-  const VERSION = '2026-11-17.12';
+  const VERSION = '2026-11-18.13';
   const POLL = new Uint8Array([0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53]);
   const BUTTONS = {
     'E ↑':[13,8], 'E ↓':[13,2], 'F ↑':[13,4], 'F ↓':[13,1],
@@ -324,6 +324,110 @@
       for(const re of patterns)for(const match of src.matchAll(re)){
         const key=canonical(match[1]);if(validKey(key))found.add(key);
       }
+
+
+      
+      // Additional keyboard control detection.
+      // Read-only: does not modify game controls.
+
+      const addDetected = raw => {
+        const key = canonical(raw);
+        if (validKey(key)) found.add(key);
+      };
+
+      // Object properties:
+      // keys.KeyW, press.Space, pressed.ArrowUp
+      for (const m of src.matchAll(
+        /\b(?:keys|press|pressed|heldKeys|keyState)\s*\.\s*(Key[A-Z]|Digit[0-9]|Space|Enter|Arrow(?:Up|Down|Left|Right))\b/g
+      )) {
+        addDetected(m[1]);
+      }
+
+      // Helper functions:
+      // k('KeyW'), pr('Space'), k('KeyA','ArrowLeft')
+      // Recognize these only if the helper reads keyboard state.
+      for (const helper of ['k', 'pr']) {
+        const definition = new RegExp(
+          '(?:\\b(?:const|let|var)\\s+|,)\\s*' +
+          helper +
+          '\\s*=\\s*\\([^)]*\\)\\s*=>\\s*[^;\\n]{0,180}' +
+          '\\b(?:keys|press|pressed)\\b' +
+          '|\\bfunction\\s+' + helper +
+          '\\s*\\([^)]*\\)\\s*\\{[^}]{0,200}' +
+          '\\b(?:keys|press|pressed)\\b'
+        );
+
+        if (!definition.test(src)) continue;
+
+        const calls = new RegExp(
+          '\\b' + helper + '\\s*\\(([^)]{0,180})\\)',
+          'g'
+        );
+
+        for (const call of src.matchAll(calls)) {
+          for (const arg of call[1].matchAll(
+            /['"]([^'"]+)['"]/g
+          )) {
+            addDetected(arg[1]);
+          }
+        }
+      }
+
+      // Keyboard aliases:
+      // const button = e.code;
+      // if (button === 'Space') ...
+      // switch (button) { case 'KeyW': ... }
+      const aliases = new Set();
+
+      for (const m of src.matchAll(
+        /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\b/g
+      )) {
+        aliases.add(m[1]);
+      }
+
+      const scanSwitch = body => {
+        for (const m of body.matchAll(
+          /\bcase\s*['"]([^'"]+)['"]\s*:/g
+        )) {
+          addDetected(m[1]);
+        }
+      };
+
+      for (const alias of aliases) {
+        const name = alias.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          '\\$&'
+        );
+
+        const comparisons = new RegExp(
+          '\\b' + name +
+          '\\s*(?:===|==|!==|!=)\\s*[\\\'"]([^\\\'"]+)[\\\'"]',
+          'g'
+        );
+
+        for (const m of src.matchAll(comparisons)) {
+          addDetected(m[1]);
+        }
+
+        const switches = new RegExp(
+          '\\bswitch\\s*\\(\\s*' + name +
+          '\\s*\\)\\s*\\{([\\s\\S]{0,3000}?)\\}',
+          'g'
+        );
+
+        for (const m of src.matchAll(switches)) {
+          scanSwitch(m[1]);
+        }
+      }
+
+      // Direct switch (e.code) or switch (event.key).
+      for (const m of src.matchAll(
+        /\bswitch\s*\(\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\)\s*\{([\s\S]{0,3000}?)\}/g
+      )) {
+        scanSwitch(m[1]);
+      }
+
+      
       const arr=/\[([^\]\n]{1,350})\]\s*\.\s*includes\s*\(\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\)/g;
       for(const match of src.matchAll(arr))for(const item of match[1].matchAll(/['"]([^'"]+)['"]/g)){
         const key=canonical(item[1]);if(validKey(key))found.add(key);
