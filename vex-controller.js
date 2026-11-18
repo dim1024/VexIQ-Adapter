@@ -1,11 +1,11 @@
 
-/* VEX_BUILD: 2026-11-17.10 */
+/* VEX_BUILD: 2026-11-18.11 */
 /* VEX IQ 2nd Gen browser adapter — no Robot Brain */
 (() => {
   'use strict';
   if (window.VEXMapper) return;
 
-  const VERSION = '2026-11-17.10';
+  const VERSION = '2026-11-18.11';
   const POLL = new Uint8Array([0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53]);
   const BUTTONS = {
     'E ↑':[13,8], 'E ↓':[13,2], 'F ↑':[13,4], 'F ↓':[13,1],
@@ -42,10 +42,22 @@
   let messageBox, messageText, connectButton, disconnectButton, speedSlider, speedValue, cursor;
   const fields = new Map();
 
+  let showCursor = saved.showCursor === true;
+  
   function save() {
-    try { localStorage.setItem(STORE,JSON.stringify({assigned:mapping,speed,aimEnabled})); }
-    catch (_) {}
+    try {
+      localStorage.setItem(
+        STORE,
+        JSON.stringify({
+          assigned: mapping,
+          speed,
+          aimEnabled,
+          showCursor
+        })
+      );
+    } catch (_) {}
   }
+  
   function make(tag,parent,cls,text) {
     const el = document.createElement(tag);
     if (cls) el.className = cls;
@@ -123,15 +135,93 @@
     heldKeys=counts;
   }
   function axis(value) { const d=value-127; return Math.abs(d)<24?0:d; }
-  function aim(rx,ry) {
-    if(panelOpen||!aimEnabled||(!rx&&!ry))return;
-    aimX=Math.max(0,Math.min(innerWidth-1,aimX+rx*speed));
-    aimY=Math.max(0,Math.min(innerHeight-1,aimY-ry*speed));
-    cursor.style.left=aimX+'px'; cursor.style.top=aimY+'px';cursor.hidden=false;
-    mouseTarget().dispatchEvent(new MouseEvent('mousemove',{
-      bubbles:true,cancelable:true,clientX:aimX,clientY:aimY
-    }));
+  
+  let targetRX = 0;
+  let targetRY = 0;
+  let smoothRX = 0;
+  let smoothRY = 0;
+  let aimFrame = 0;
+  let lastAimTime = 0;
+  
+  function aim(rx, ry) {
+    targetRX = rx;
+    targetRY = ry;
+  
+    if (!aimFrame && active && !panelOpen && aimEnabled) {
+      aimFrame = requestAnimationFrame(updateSmoothAim);
+    }
   }
+  
+  function updateSmoothAim(time) {
+    aimFrame = 0;
+  
+    if (!active || panelOpen || !aimEnabled) {
+      targetRX = 0;
+      targetRY = 0;
+      smoothRX = 0;
+      smoothRY = 0;
+      lastAimTime = 0;
+      cursor.hidden = true;
+      return;
+    }
+  
+    const dt = lastAimTime
+      ? Math.min(time - lastAimTime, 50)
+      : 16.67;
+  
+    lastAimTime = time;
+  
+    // Smooth the joystick velocity.
+    // 90 ms gives a smooth but responsive feeling.
+    const alpha = 1 - Math.exp(-dt / 90);
+  
+    smoothRX += (targetRX - smoothRX) * alpha;
+    smoothRY += (targetRY - smoothRY) * alpha;
+  
+    if (Math.abs(smoothRX) < 0.15 && targetRX === 0) {
+      smoothRX = 0;
+    }
+  
+    if (Math.abs(smoothRY) < 0.15 && targetRY === 0) {
+      smoothRY = 0;
+    }
+  
+    if (smoothRX !== 0 || smoothRY !== 0) {
+      // Same approximate speed as the original 100 ms polling.
+      const step = speed * dt / 100;
+  
+      aimX = Math.max(
+        0,
+        Math.min(innerWidth - 1, aimX + smoothRX * step)
+      );
+  
+      aimY = Math.max(
+        0,
+        Math.min(innerHeight - 1, aimY - smoothRY * step)
+      );
+  
+      cursor.style.left = aimX + 'px';
+      cursor.style.top = aimY + 'px';
+  
+      mouseTarget().dispatchEvent(
+        new MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          clientX: aimX,
+          clientY: aimY
+        })
+      );
+    }
+  
+    cursor.hidden = !showCursor;
+  
+    if (targetRX || targetRY || smoothRX || smoothRY) {
+      aimFrame = requestAnimationFrame(updateSmoothAim);
+    } else {
+      lastAimTime = 0;
+    }
+  }
+  
   function packet(p) {
     packets++;lastData=Date.now();
     const rx=axis(p[5]),ry=axis(p[6]),lx=axis(p[7]),ly=axis(p[8]);
@@ -251,14 +341,6 @@
   function finishAssignment(key,input) {
     releaseAll();mapping[key]=input;learning=null;conflict=null;
     messageBox.hidden=true;save();updateFields();
-  }
-  function requestAssignment(key,input) {
-    if(input==='none'){finishAssignment(key,input);return;}
-    const duplicates=keys.filter(k=>k!==key&&mapping[k]===input);
-    if(!duplicates.length){finishAssignment(key,input);return;}
-    conflict={key,input,duplicates};learning=null;
-    messageText.textContent=input+' is already assigned to '+duplicates.join(', ')+'.';
-    messageBox.hidden=false;updateFields();
   }
   
   function requestAssignment(key, input) {
@@ -424,6 +506,32 @@
     speedSlider.oninput=()=>{speed=+speedSlider.value;speedValue.textContent=speed.toFixed(2)+'×';save();};
     const aimButton=make('button',panel,'secondary','Mouse aiming: '+(aimEnabled?'ON':'OFF'));
     aimButton.onclick=()=>{aimEnabled=!aimEnabled;aimButton.textContent='Mouse aiming: '+(aimEnabled?'ON':'OFF');if(!aimEnabled)cursor.hidden=true;save();};
+    
+    const cursorButton = make(
+      'button',
+      panel,
+      'secondary',
+      'Show mouse cursor: ' + (showCursor ? 'ON' : 'OFF')
+    );
+    
+    cursorButton.style.marginTop = '10px';
+    
+    cursorButton.onclick = () => {
+      showCursor = !showCursor;
+    
+      cursorButton.textContent =
+        'Show mouse cursor: ' + (showCursor ? 'ON' : 'OFF');
+    
+      cursor.hidden = !showCursor || !active || panelOpen;
+    
+      if (showCursor) {
+        cursor.style.left = aimX + 'px';
+        cursor.style.top = aimY + 'px';
+      }
+    
+      save();
+    };
+
     const foot=make('div',panel,'foot');
     const reset=make('button',foot,'secondary','Reset defaults');
     reset.onclick=()=>{releaseAll();for(const key of keys)mapping[key]=DEFAULTS[key]||'none';mapping.Enter='R3';save();updateFields();};
