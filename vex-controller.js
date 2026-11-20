@@ -1,11 +1,11 @@
 
-/* VEX_BUILD: 2026-11-20.14 */
+/* VEX_BUILD: 2026-11-20.15 */
 /* VEX IQ 2nd Gen browser adapter — no Robot Brain */
 (() => {
   'use strict';
   if (window.VEXMapper) return;
 
-  const VERSION = '2026-11-20.14';
+  const VERSION = '2026-11-20.15';
   const POLL = new Uint8Array([0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53]);
   const BUTTONS = {
     'E ↑':[13,8], 'E ↓':[13,2], 'F ↑':[13,4], 'F ↓':[13,1],
@@ -352,7 +352,7 @@
   }
   function validKey(k) {
     return /^[a-z0-9]$/.test(k)||
-      /^(Space|Enter|Shift|Control|Escape|Tab|Backspace)$/.test(k)||
+      /^(Space|Enter|Shift|ShiftLeft|ShiftRight|Control|ControlLeft|ControlRight|Escape|Tab|Backspace)$/.test(k)||
       /^Arrow(Up|Down|Left|Right)$/.test(k)||/^F(?:[1-9]|1[0-2])$/.test(k);
   }
   // Best-effort discovery; JS APIs do not expose a semantic list of game actions.
@@ -378,6 +378,43 @@
       if(!/\b(?:let|const|var)\s+(?:k|key)\s*=\s*(?:e|event|ev|evt)\s*\.\s*key/.test(src))patterns.splice(4,2);
       for(const re of patterns)for(const match of src.matchAll(re)){
         const key=canonical(match[1]);if(validKey(key))found.add(key);
+      }
+      // Recognize helper functions like k('KeyW') and pr('Space')
+      // only when their definitions read a keyboard-state object.
+      const keyboardHelpers = new Set();
+      for (const match of src.matchAll(
+        /(?:\b(?:const|let|var)\s+|,\s*)([A-Za-z_$][\w$]*)\s*=\s*\([^)]{0,100}\)\s*=>\s*[^;,\n]{0,200}\b(?:keys|press|pressed)\s*\[/g
+      )) keyboardHelpers.add(match[1]);
+      for (const helper of keyboardHelpers) {
+        const escapedHelper = helper.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const calls = new RegExp('\\b' + escapedHelper + '\\s*\\(([^)]{0,200})\\)', 'g');
+        for (const call of src.matchAll(calls)) {
+          for (const arg of call[1].matchAll(/['"]([^'"]+)['"]/g)) {
+            const key = canonical(arg[1]);
+            if (validKey(key)) found.add(key);
+          }
+        }
+      }
+      // Recognize keyboard lookup tables used as map[e.code] / map[event.key].
+      // Only inspect a table actually indexed by a keyboard event.
+      const keyboardMaps = new Set();
+      for (const match of src.matchAll(
+        /\b([A-Za-z_$][\w$]*)\s*\[\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\]/g
+      )) keyboardMaps.add(match[1]);
+      for (const mapName of keyboardMaps) {
+        const escapedName = mapName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const declaration = new RegExp(
+          '\\b(?:const|let|var)\\s+' + escapedName +
+          '\\s*=\\s*\\{([^{}]{1,3000})\\}', 'g'
+        );
+        for (const match of src.matchAll(declaration)) {
+          for (const entry of match[1].matchAll(
+            /(?:^|,)\s*(?:['"]([^'"]+)['"]|([A-Za-z_$][\w$]*))\s*:/g
+          )) {
+            const key = canonical(entry[1] || entry[2]);
+            if (validKey(key)) found.add(key);
+          }
+        }
       }
       const arr=/\[([^\]\n]{1,350})\]\s*\.\s*includes\s*\(\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\)/g;
       for(const match of src.matchAll(arr))for(const item of match[1].matchAll(/['"]([^'"]+)['"]/g)){
