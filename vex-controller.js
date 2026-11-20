@@ -21,7 +21,7 @@
     w:'Left ↑', s:'Left ↓', a:'Left ←', d:'Left →',
     ArrowUp:'Left ↑', ArrowDown:'Left ↓',
     ArrowLeft:'Left ←', ArrowRight:'Left →',
-    Space:'E ↑', Enter:'R3', j:'F ↑', q:'E ↓',
+    Space:'F ↑', Enter:'R3', j:'E ↑', q:'E ↓',
     r:'F ↑', f:'F ↓', e:'L ↑', c:'L ↓',
     v:'R ↑', '1':'R ↓', p:'L3', k:'none', m:'none'
   };
