@@ -1,11 +1,11 @@
 
-/* VEX_BUILD: 2026-11-18.13 */
+/* VEX_BUILD: 2026-11-20.14 */
 /* VEX IQ 2nd Gen browser adapter — no Robot Brain */
 (() => {
   'use strict';
   if (window.VEXMapper) return;
 
-  const VERSION = '2026-11-18.13';
+  const VERSION = '2026-11-20.14';
   const POLL = new Uint8Array([0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53]);
   const BUTTONS = {
     'E ↑':[13,8], 'E ↓':[13,2], 'F ↑':[13,4], 'F ↓':[13,1],
@@ -190,43 +190,98 @@
     lastError=message;active=false;releaseAll();setStatus(message,'error');
     setTimeout(()=>disconnect(),0);
   }
-  async function connect() {
-    if(active||busy||closing)return;
-    if(!navigator.serial){setStatus('Use Chrome/Edge on HTTPS.','error');return;}
-    busy=true;connectButton.disabled=true;
-    try {
-      port=await navigator.serial.requestPort();
-      const info=port.getInfo();
-      if(info.usbVendorId!==10376||info.usbProductId!==528)
-        throw new Error('Choose VEX Robotics IQ Controller — Communications Port');
-      await port.open({baudRate:115200});
-      writer=port.writable.getWriter();buffer=[];lastData=0;lastError='';
-      pressedInputs={};active=true;
-      readJob=readLoop();pollJob=pollLoop();
-      disconnectButton.disabled=false;
-      setStatus('VEX IQ connected','connected');
-      // Keep settings open so the next click can assign a physical button.
-    } catch(e) {
-      lastError=e.message;setStatus('Connection failed: '+e.message,'error');
-      if(writer){try{writer.releaseLock();}catch(_){}writer=null;}
-      if(port){try{await port.close();}catch(_){}port=null;}
-    } finally {busy=false;connectButton.disabled=active;}
+  function isVexPort(p) {
+    const info = p.getInfo();
+    return info.usbVendorId === 10376 && info.usbProductId === 528;
   }
+
+  async function connect() {
+    if (active || busy || closing) return;
+    if (!navigator.serial) {
+      setStatus('Use Chrome/Edge on HTTPS.','error');
+      return;
+    }
+
+    busy = true;
+    connectButton.disabled = true;
+    try {
+      // Reuse previously permitted port without opening the chooser again.
+      const known = (await navigator.serial.getPorts()).filter(isVexPort);
+      port = known.length === 1
+        ? known[0]
+        : await navigator.serial.requestPort();
+
+      if (!isVexPort(port)) {
+        throw new Error('Choose VEX Robotics IQ Controller — Communications Port');
+      }
+
+      let opened = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        if (attempt > 1) await sleep(400 * attempt);
+        setStatus('Connecting VEX IQ (' + attempt + '/3)…');
+
+        try {
+          await port.open({ baudRate: 115200 });
+          writer = port.writable.getWriter();
+          buffer = [];
+          pressedInputs = {};
+          lastData = 0;
+          lastError = '';
+          active = true;
+          readJob = readLoop();
+          pollJob = pollLoop();
+          disconnectButton.disabled = false;
+          setStatus('VEX IQ connected','connected');
+          opened = true;
+          break;
+        } catch (e) {
+          lastError = e.message;
+          // Close a partially opened port before retrying.
+          if (writer) {
+            try { writer.releaseLock(); } catch (_) {}
+            writer = null;
+          }
+          try { await port.close(); } catch (_) {}
+        }
+      }
+
+      if (!opened) {
+        throw new Error('Could not open VEX port after 3 tries: ' + lastError +
+          '. Close other game tabs that may be using this port.');
+      }
+    } catch (e) {
+      const canceled = e.name === 'NotFoundError';
+      lastError = canceled ? '' : e.message;
+      setStatus(canceled ? 'Connection canceled' : 'Connection failed: ' + e.message,
+        canceled ? '' : 'error');
+      port = null;
+    } finally {
+      busy = false;
+      connectButton.disabled = active;
+    }
+  }
+
   async function disconnect() {
-    if(closing||busy)return;
-    closing=true;active=false;releaseAll();learning=null;
-    try{if(reader)await reader.cancel();}catch(_){}
-    try{if(readJob)await readJob;}catch(_){}
-    try{if(pollJob)await pollJob;}catch(_){}
-    readJob=pollJob=null;
-    try{if(writer)writer.releaseLock();}catch(_){}
-    writer=null;
-    try{if(port)await port.close();}catch(_){}
-    port=null;closing=false;pressedInputs={};
-    if(cursor)cursor.hidden=true;
-    if(connectButton)connectButton.disabled=false;
-    if(disconnectButton)disconnectButton.disabled=true;
-    setStatus(lastError?'Disconnected — '+lastError:'Not connected',lastError?'error':'');
+    if (closing || busy) return;
+    closing = true;
+    active = false;
+    releaseAll();
+    learning = null;
+    try { if (reader) await reader.cancel(); } catch (_) {}
+    try { if (readJob) await readJob; } catch (_) {}
+    try { if (pollJob) await pollJob; } catch (_) {}
+    readJob = pollJob = null;
+    try { if (writer) writer.releaseLock(); } catch (_) {}
+    writer = null;
+    try { if (port) await port.close(); } catch (_) {}
+    port = null;
+    closing = false;
+    pressedInputs = {};
+    if (cursor) cursor.hidden = true;
+    if (connectButton) connectButton.disabled = false;
+    if (disconnectButton) disconnectButton.disabled = true;
+    setStatus(lastError ? 'Disconnected — ' + lastError : 'Not connected',
+      lastError ? 'error' : '');
     updateFields();
   }
 
@@ -324,110 +379,6 @@
       for(const re of patterns)for(const match of src.matchAll(re)){
         const key=canonical(match[1]);if(validKey(key))found.add(key);
       }
-
-
-      
-      // Additional keyboard control detection.
-      // Read-only: does not modify game controls.
-
-      const addDetected = raw => {
-        const key = canonical(raw);
-        if (validKey(key)) found.add(key);
-      };
-
-      // Object properties:
-      // keys.KeyW, press.Space, pressed.ArrowUp
-      for (const m of src.matchAll(
-        /\b(?:keys|press|pressed|heldKeys|keyState)\s*\.\s*(Key[A-Z]|Digit[0-9]|Space|Enter|Arrow(?:Up|Down|Left|Right))\b/g
-      )) {
-        addDetected(m[1]);
-      }
-
-      // Helper functions:
-      // k('KeyW'), pr('Space'), k('KeyA','ArrowLeft')
-      // Recognize these only if the helper reads keyboard state.
-      for (const helper of ['k', 'pr']) {
-        const definition = new RegExp(
-          '(?:\\b(?:const|let|var)\\s+|,)\\s*' +
-          helper +
-          '\\s*=\\s*\\([^)]*\\)\\s*=>\\s*[^;\\n]{0,180}' +
-          '\\b(?:keys|press|pressed)\\b' +
-          '|\\bfunction\\s+' + helper +
-          '\\s*\\([^)]*\\)\\s*\\{[^}]{0,200}' +
-          '\\b(?:keys|press|pressed)\\b'
-        );
-
-        if (!definition.test(src)) continue;
-
-        const calls = new RegExp(
-          '\\b' + helper + '\\s*\\(([^)]{0,180})\\)',
-          'g'
-        );
-
-        for (const call of src.matchAll(calls)) {
-          for (const arg of call[1].matchAll(
-            /['"]([^'"]+)['"]/g
-          )) {
-            addDetected(arg[1]);
-          }
-        }
-      }
-
-      // Keyboard aliases:
-      // const button = e.code;
-      // if (button === 'Space') ...
-      // switch (button) { case 'KeyW': ... }
-      const aliases = new Set();
-
-      for (const m of src.matchAll(
-        /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\b/g
-      )) {
-        aliases.add(m[1]);
-      }
-
-      const scanSwitch = body => {
-        for (const m of body.matchAll(
-          /\bcase\s*['"]([^'"]+)['"]\s*:/g
-        )) {
-          addDetected(m[1]);
-        }
-      };
-
-      for (const alias of aliases) {
-        const name = alias.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          '\\$&'
-        );
-
-        const comparisons = new RegExp(
-          '\\b' + name +
-          '\\s*(?:===|==|!==|!=)\\s*[\\\'"]([^\\\'"]+)[\\\'"]',
-          'g'
-        );
-
-        for (const m of src.matchAll(comparisons)) {
-          addDetected(m[1]);
-        }
-
-        const switches = new RegExp(
-          '\\bswitch\\s*\\(\\s*' + name +
-          '\\s*\\)\\s*\\{([\\s\\S]{0,3000}?)\\}',
-          'g'
-        );
-
-        for (const m of src.matchAll(switches)) {
-          scanSwitch(m[1]);
-        }
-      }
-
-      // Direct switch (e.code) or switch (event.key).
-      for (const m of src.matchAll(
-        /\bswitch\s*\(\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\)\s*\{([\s\S]{0,3000}?)\}/g
-      )) {
-        scanSwitch(m[1]);
-      }
-
-      
       const arr=/\[([^\]\n]{1,350})\]\s*\.\s*includes\s*\(\s*(?:e|event|ev|evt)\s*\.\s*(?:code|key)\s*\)/g;
       for(const match of src.matchAll(arr))for(const item of match[1].matchAll(/['"]([^'"]+)['"]/g)){
         const key=canonical(item[1]);if(validKey(key))found.add(key);
@@ -503,6 +454,10 @@
     pillText=make('span',pill,'pill-label','+ Add Controller');
     pill.classList.add('compact');
     pill.onclick=()=>showPanel(!panelOpen);
+    // Click anywhere outside the adapter to close settings.
+    document.addEventListener('pointerdown', e => {
+      if (panelOpen && !e.composedPath().includes(host)) showPanel(false);
+    }, true);
     panel=make('section',shadow,'panel');panel.hidden=true;
     const head=make('div',panel,'head');const heading=make('div',head);
     make('div',heading,'title','Controller settings');
@@ -591,7 +546,8 @@
     },400);
   }
   window.addEventListener('blur',()=>{releaseAll();realKeys.clear();});
-  window.addEventListener('beforeunload',()=>{active=false;releaseAll();});
+  // Try to release the serial port when leaving this game.
+  window.addEventListener('pagehide',()=>{ void disconnect(); });
   window.VEXMapper={version:VERSION,connect,disconnect};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',buildUI,{once:true});
   else buildUI();
