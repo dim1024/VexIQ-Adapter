@@ -1,11 +1,11 @@
 
-/* VEX_BUILD: 2026-11-20.15 */
+/* VEX_BUILD: 2026-11-20.16 */
 /* VEX IQ 2nd Gen browser adapter — no Robot Brain */
 (() => {
   'use strict';
   if (window.VEXMapper) return;
 
-  const VERSION = '2026-11-20.15';
+  const VERSION = '2026-11-20.16';
   const POLL = new Uint8Array([0xc9,0x36,0xb8,0x47,0x58,0x60,0x00,0x10,0x53]);
   const BUTTONS = {
     'E ↑':[13,8], 'E ↓':[13,2], 'F ↑':[13,4], 'F ↓':[13,1],
@@ -75,7 +75,7 @@
     return key;
   }
   function keyEvent(key,down) {
-    window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {
+    document.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', {
       key:key==='Space' ? ' ' : key, code:codeOf(key),
       bubbles:true, cancelable:true,
       shiftKey:key==='Shift', ctrlKey:key==='Control'
